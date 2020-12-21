@@ -142,8 +142,8 @@ func downloadAndUnzip(url string, fileID string) {
 	filesize, _ := strconv.ParseInt(fmt.Sprint(fi.Size()), 10, 64)
 	// progress, _ = strconv.ParseInt(j.GetString(uuid+".progress"), 10, 64)
 	// 如果压缩包小于1M 就不解压
-	if filesize < int64(10240) {
-		log.Fatalln("文件下载出错（小于1M），请重新下载.....")
+	if filesize < int64(5120) {
+		log.Fatalln("文件下载出错（小于512k），请重新下载.....")
 		var exitScan string
 		_, _ = fmt.Scan(&exitScan)
 	}
@@ -160,8 +160,102 @@ func downloadAndUnzip(url string, fileID string) {
 }
 
 //监听
-func listenForNetworkEvent(ctx context.Context) {
+func listenForMain(APIUrl string) {
+	// 等待用户输入
+	var Link string
+	// fmt.Println("当前平台  " + runtime.GOOS)
 
+	// 调用默认浏览器打开资源 方便下载  其他平台浏览器调用 https://www.jianshu.com/p/29adf056e72b
+	// if strings.EqualFold(runtime.GOOS, "windows") {
+	// 	exec.Command(`cmd`, `/c`, `start`, `https://steamworkshopdownloader.io/`).Start()
+	// 	exec.Command(`cmd`, `/c`, `start`, `https://steamcommunity.com/app/431960/workshop/`).Start()
+
+	// } else if runtime.GOOS == "darwin" {
+	// 	exec.Command(`open`, `https://steamworkshopdownloader.io/`).Start()
+	// 	exec.Command(`open`, `https://steamcommunity.com/app/431960/workshop/`).Start()
+	// } else if runtime.GOOS == "linux" {
+	// 	exec.Command(`xdg-open`, `https://steamworkshopdownloader.io/`).Start()
+	// 	exec.Command(`xdg-open`, `https://steamcommunity.com/app/431960/workshop/`).Start()
+	// }
+
+	for {
+		fmt.Println("请输入包含ID的连接(可 鼠标右键粘贴)：")
+		//当程序只是到fmt.Scanln(&name)程序会停止执行等待用户输入
+		fmt.Scanln(&Link)
+		// Link = "https://steamcommunity.com/sharedfiles/filedetails/?id=2087854115&searchtext="
+		if !gstr.ContainsI(Link, "https://") {
+			fmt.Println("不是正确的https  ID连接，例如 https://steamcommunity.com/sharedfiles/filedetails/?id=2309314482")
+			continue
+		}
+		if !gstr.ContainsI(Link, "?id=") {
+			fmt.Println("连接不包含ID，例如 https://steamcommunity.com/sharedfiles/filedetails/?id=2309314482")
+			continue
+		}
+		break
+	}
+	fileID, _ := gregex.MatchString(`id=\d+`, Link)
+
+	fileID, _ = gregex.MatchString(`\d+`, fileID[0])
+	fmt.Println("下载的连接的ID是" + fileID[0])
+	rawStr := "{" + "\"publishedFileId\":" + fileID[0] + "," + "\"collectionId\":null,\"extract\":true,\"hidden\":false,\"direct\":false,\"autodownload\":false" + "}"
+	var jsonStr = []byte(rawStr)
+	r, e := http.NewRequest("POST", APIUrl+"download/request", bytes.NewBuffer(jsonStr))
+
+	client := &http.Client{}
+	resp, err := client.Do(r)
+	if err != nil {
+		panic(err)
+	}
+	defer resp.Body.Close()
+
+	if e != nil {
+		panic(e)
+	} else {
+		// {"uuid":"734f5478-7b66-49df-a6a0-ddbdf4106d61"}
+
+		s, _ := ioutil.ReadAll(resp.Body) //把  body 内容读入字符串 s
+		fmt.Println(string(s))
+		var uuid string
+		if j, err := gjson.DecodeToJson(string(s)); err != nil {
+			panic(err)
+		} else {
+			uuid = j.GetString("uuid")
+		}
+		// 判断是否完成 等进度是100 以上 200 这种才开始结束
+		//https://api_01.steamworkshopdownloader.io/api/download/status
+		// {"uuids":["6df0dc8a-4ccd-4fd2-8532-3c933df4dc80"]}
+		var progress int64 = 0
+
+		for progress < int64(150) {
+			time.Sleep(time.Second * 1)
+			rawStr = "{\"uuids\":[\"" + uuid + "\"]}"
+			var jsonStr = []byte(rawStr)
+			r, e = http.NewRequest("POST", APIUrl+"download/status", bytes.NewBuffer(jsonStr))
+
+			client = &http.Client{}
+
+			resp, err := client.Do(r)
+			if err != nil {
+				panic(err)
+			}
+			defer resp.Body.Close()
+
+			s, _ = ioutil.ReadAll(resp.Body) //把  body 内容读入字符串 s
+			fmt.Println(string(s))
+
+			if j, err := gjson.DecodeToJson(string(s)); err != nil {
+				panic(err)
+			} else {
+				progress, _ = strconv.ParseInt(j.GetString(uuid+".progress"), 10, 64)
+
+			}
+			fmt.Println("服务器下载进度    " + strconv.FormatInt(progress, 10))
+		}
+		fileDownload := APIUrl + "download/transmit?uuid=" + uuid
+
+		downloadAndUnzip(fileDownload, fileID[0])
+	}
+	// 等待用户关闭（输入）
 }
 
 func main() {
@@ -240,107 +334,15 @@ func main() {
 		chromedp.Navigate(`https://steamworkshopdownloader.io/`),
 		chromedp.WaitVisible(`body`, chromedp.BySearch),
 	)
-
-	// 等待用户输入
-	var Link string
-	// fmt.Println("当前平台  " + runtime.GOOS)
-
-	// 调用默认浏览器打开资源 方便下载  其他平台浏览器调用 https://www.jianshu.com/p/29adf056e72b
-	// if strings.EqualFold(runtime.GOOS, "windows") {
-	// 	exec.Command(`cmd`, `/c`, `start`, `https://steamworkshopdownloader.io/`).Start()
-	// 	exec.Command(`cmd`, `/c`, `start`, `https://steamcommunity.com/app/431960/workshop/`).Start()
-
-	// } else if runtime.GOOS == "darwin" {
-	// 	exec.Command(`open`, `https://steamworkshopdownloader.io/`).Start()
-	// 	exec.Command(`open`, `https://steamcommunity.com/app/431960/workshop/`).Start()
-	// } else if runtime.GOOS == "linux" {
-	// 	exec.Command(`xdg-open`, `https://steamworkshopdownloader.io/`).Start()
-	// 	exec.Command(`xdg-open`, `https://steamcommunity.com/app/431960/workshop/`).Start()
-	// }
-
 	for {
-		fmt.Println("请输入包含ID的连接：")
-		//当程序只是到fmt.Scanln(&name)程序会停止执行等待用户输入
-		fmt.Scanln(&Link)
-		// Link = "https://steamcommunity.com/sharedfiles/filedetails/?id=2087854115&searchtext="
-		if !gstr.ContainsI(Link, "https://") {
-			fmt.Println("不是正确的https  ID连接，例如 https://steamcommunity.com/sharedfiles/filedetails/?id=2309314482")
-			continue
-		}
-		if !gstr.ContainsI(Link, "?id=") {
-			fmt.Println("连接不包含ID，例如 https://steamcommunity.com/sharedfiles/filedetails/?id=2309314482")
-			continue
-		}
-		break
+		listenForMain(APIUrl)
+		println("")
+		println("")
+		println("软件开源地址：https://github.com/user1121114685/Wallpaper_Engine")
+		println("执行完毕........重启 Wallpaper Engine 可以看到刚才下载的壁纸.....")
+		println("")
+		println("........本软件可以多开，不需要等等下载完成.....")
+		println("")
 	}
-	fileID, _ := gregex.MatchString(`id=\d+`, Link)
 
-	fileID, _ = gregex.MatchString(`\d+`, fileID[0])
-	fmt.Println("下载的连接的ID是" + fileID[0])
-	rawStr := "{" + "\"publishedFileId\":" + fileID[0] + "," + "\"collectionId\":null,\"extract\":true,\"hidden\":false,\"direct\":false,\"autodownload\":false" + "}"
-	var jsonStr = []byte(rawStr)
-	r, e := http.NewRequest("POST", APIUrl+"download/request", bytes.NewBuffer(jsonStr))
-
-	client := &http.Client{}
-	resp, err := client.Do(r)
-	if err != nil {
-		panic(err)
-	}
-	defer resp.Body.Close()
-
-	if e != nil {
-		panic(e)
-	} else {
-		// {"uuid":"734f5478-7b66-49df-a6a0-ddbdf4106d61"}
-
-		s, _ := ioutil.ReadAll(resp.Body) //把  body 内容读入字符串 s
-		fmt.Println(string(s))
-		var uuid string
-		if j, err := gjson.DecodeToJson(string(s)); err != nil {
-			panic(err)
-		} else {
-			uuid = j.GetString("uuid")
-		}
-		// 判断是否完成 等进度是100 以上 200 这种才开始结束
-		//https://api_01.steamworkshopdownloader.io/api/download/status
-		// {"uuids":["6df0dc8a-4ccd-4fd2-8532-3c933df4dc80"]}
-		var progress int64 = 0
-
-		for progress < int64(150) {
-			time.Sleep(time.Second * 1)
-			rawStr = "{\"uuids\":[\"" + uuid + "\"]}"
-			var jsonStr = []byte(rawStr)
-			r, e = http.NewRequest("POST", APIUrl+"download/status", bytes.NewBuffer(jsonStr))
-
-			client = &http.Client{}
-
-			resp, err := client.Do(r)
-			if err != nil {
-				panic(err)
-			}
-			defer resp.Body.Close()
-
-			s, _ = ioutil.ReadAll(resp.Body) //把  body 内容读入字符串 s
-			fmt.Println(string(s))
-
-			if j, err := gjson.DecodeToJson(string(s)); err != nil {
-				panic(err)
-			} else {
-				progress, _ = strconv.ParseInt(j.GetString(uuid+".progress"), 10, 64)
-
-			}
-			fmt.Println("服务器下载进度    " + strconv.FormatInt(progress, 10))
-		}
-		fileDownload := APIUrl + "download/transmit?uuid=" + uuid
-
-		downloadAndUnzip(fileDownload, fileID[0])
-	}
-	// 等待用户关闭（输入）
-	println("")
-	println("")
-	println("软件开源地址：https://github.com/user1121114685/Wallpaper_Engine")
-	println("执行完毕........重启 Wallpaper Engine 可以看到刚才下载的壁纸.....")
-
-	var exitScan string
-	_, _ = fmt.Scan(&exitScan)
 }
