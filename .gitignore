@@ -2,3 +2,5 @@
 projects/defaultprojects/
 *.exe
 steamdownload.7z
+__debug_bin
+*.log

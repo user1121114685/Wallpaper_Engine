@@ -3,6 +3,9 @@ module steamdownload
 go 1.15
 
 require (
+	github.com/beego/beego/v2 v2.0.1
+	github.com/chromedp/cdproto v0.0.0-20201204063249-be40c824ad18
+	github.com/chromedp/chromedp v0.5.4
 	github.com/dustin/go-humanize v1.0.0
 	github.com/go-delve/delve v1.5.1 // indirect
 	github.com/gogf/gf v1.14.5
