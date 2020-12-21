@@ -242,14 +242,20 @@ func listenForMain(APIUrl string) {
 
 			s, _ = ioutil.ReadAll(resp.Body) //把  body 内容读入字符串 s
 			fmt.Println(string(s))
-
-			if j, err := gjson.DecodeToJson(string(s)); err != nil {
+			j, err := gjson.DecodeToJson(string(s))
+			if err != nil {
 				panic(err)
-			} else {
-				progress, _ = strconv.ParseInt(j.GetString(uuid+".progress"), 10, 64)
-
+			}
+			progress, _ = strconv.ParseInt(j.GetString(uuid+".progress"), 10, 64)
+			if strings.Index(j.GetString(uuid+".progressText"), "failed") != -1 {
+				// 服务端下载失败
+				fmt.Println("服务器端下载失败  等待30秒后重试。  ")
+				fmt.Println("请复制原始Link 重新下次下载 " + Link)
+				var exitScan string
+				_, _ = fmt.Scan(&exitScan)
 			}
 			fmt.Println("服务器下载进度    " + strconv.FormatInt(progress, 10))
+			// {"820a3912-91f3-4174-9edd-40676a1559f4":{"age":76,"status":"error","progress":0,"progressText":"download failed: no steam client available, try again in a minute","downloadError":"never transmitted"}}
 		}
 		fileDownload := APIUrl + "download/transmit?uuid=" + uuid
 
