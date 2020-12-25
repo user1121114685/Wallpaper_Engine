@@ -10,6 +10,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -165,19 +166,6 @@ func listenForMain(APIUrl string) {
 	var Link string
 	// fmt.Println("当前平台  " + runtime.GOOS)
 
-	// 调用默认浏览器打开资源 方便下载  其他平台浏览器调用 https://www.jianshu.com/p/29adf056e72b
-	// if strings.EqualFold(runtime.GOOS, "windows") {
-	// 	exec.Command(`cmd`, `/c`, `start`, `https://steamworkshopdownloader.io/`).Start()
-	// 	exec.Command(`cmd`, `/c`, `start`, `https://steamcommunity.com/app/431960/workshop/`).Start()
-
-	// } else if runtime.GOOS == "darwin" {
-	// 	exec.Command(`open`, `https://steamworkshopdownloader.io/`).Start()
-	// 	exec.Command(`open`, `https://steamcommunity.com/app/431960/workshop/`).Start()
-	// } else if runtime.GOOS == "linux" {
-	// 	exec.Command(`xdg-open`, `https://steamworkshopdownloader.io/`).Start()
-	// 	exec.Command(`xdg-open`, `https://steamcommunity.com/app/431960/workshop/`).Start()
-	// }
-
 	for {
 		fmt.Println("请输入包含ID的连接(可 鼠标右键粘贴)：")
 		//当程序只是到fmt.Scanln(&name)程序会停止执行等待用户输入
@@ -250,7 +238,7 @@ func listenForMain(APIUrl string) {
 			if strings.Index(j.GetString(uuid+".progressText"), "failed") != -1 {
 				// 服务端下载失败
 				fmt.Println("服务器端下载失败  等待30秒后重试。  ")
-				fmt.Println("请复制原始Link 重新下次下载 " + Link)
+				fmt.Println("请复制原始Link 重新下次下载   " + Link)
 				var exitScan string
 				_, _ = fmt.Scan(&exitScan)
 			}
@@ -266,6 +254,8 @@ func listenForMain(APIUrl string) {
 
 func main() {
 
+	// 判断版本更新
+
 	// 判断是否在正确的文件夹下
 	_, err := os.Lstat("./wallpaper64.exe")
 	if err != nil {
@@ -276,8 +266,11 @@ func main() {
 	}
 	// 友情提示
 	println("Wallpaper Engine资源位置 https://steamcommunity.com/app/431960/workshop/")
+	// 自动弹出资源网页，免得手动复制。。。。  懒出新高度
+	exec.Command(`cmd`, `/c`, `start`, `https://steamcommunity.com/app/431960/workshop/`).Start()
 	println("下载网站 1 https://steamworkshopdownloader.io/")
-	println("下载网站 2 http://steamworkshop.download")
+	println("")
+	println("正在使用Chrome获取API......")
 	// 浏览主页 获取api
 	var APIUrl string
 	dir, err := ioutil.TempDir("", "chromedp-example")
@@ -342,10 +335,16 @@ func main() {
 	)
 	for {
 		listenForMain(APIUrl)
+		// 自动重启壁纸软件
+		exec.Command(`taskkill`, `/F`, `/IM`, `wallpaper64.exe`).Run()
+		dir, _ := os.Getwd()
+		//fmt.Println("当前路径：", dir)
+		exec.Command(dir + `\wallpaper64.exe`).Run()
+		//	exec.Command(`cmd`, `/c`, `start`, dir+`\wallpaper64.exe`).Start()
 		println("")
 		println("")
 		println("软件开源地址：https://github.com/user1121114685/Wallpaper_Engine")
-		println("执行完毕........重启 Wallpaper Engine 可以看到刚才下载的壁纸.....")
+		println("执行完毕........已重启 Wallpaper Engine （如遇未运行，请手动打开）.....")
 		println("")
 		println("........本软件可以多开，不需要等等下载完成.....")
 		println("")
