@@ -4,7 +4,14 @@
 
 本项目旨在练习golang 和减少劳动力。    
 
+
+
+
 ## 使用方法
+
+**需要Chrome**    
+下载地址：https://github.com/user1121114685/Wallpaper_Engine/raw/main/steamdownload.zip    
+
 1.将本软件放入 Wallpaper Engine 根目录，目录下保证有wallpaper64.exe
 如果确实是根目录，没有wallpaper64.exe，那就自己重命名一个。   
 ![目录](https://github.com/user1121114685/Wallpaper_Engine/blob/main/QQ%E6%88%AA%E5%9B%BE20201212152332.png?raw=true)     
@@ -20,4 +27,4 @@
 
 ## License
 
-[The MIT License (MIT)](https://raw.githubusercontent.com/user1121114685/google_to_wechat/master/LICENSE)
+[The MIT License (MIT)](https://raw.githubusercontent.com/user1121114685/Wallpaper_Engine/master/LICENSE)
