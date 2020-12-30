@@ -24,6 +24,9 @@ import (
 	"github.com/gogf/gf/text/gstr"
 )
 
+// ReDownloadLink 下载失败重下地址 全局存放
+var ReDownloadLink = ""
+
 func UnZip(dst, src string) (err error) {
 	// 打开压缩文件，这个 zip 包有个方便的 ReadCloser 类型
 	// 这个里面有个方便的 OpenReader 函数，可以比 tar 的时候省去一个打开文件的步骤
@@ -161,26 +164,38 @@ func downloadAndUnzip(url string, fileID string) {
 }
 
 //监听
-func listenForMain(APIUrl string) {
+func listenForMain(APIUrl string, ReDownLink string) {
 	// 等待用户输入
 	var Link string
-	// fmt.Println("当前平台  " + runtime.GOOS)
 
-	for {
-		fmt.Println("请输入包含ID的连接(可 鼠标右键粘贴)：")
-		//当程序只是到fmt.Scanln(&name)程序会停止执行等待用户输入
-		fmt.Scanln(&Link)
-		// Link = "https://steamcommunity.com/sharedfiles/filedetails/?id=2087854115&searchtext="
-		if !gstr.ContainsI(Link, "https://") {
-			fmt.Println("不是正确的https  ID连接，例如 https://steamcommunity.com/sharedfiles/filedetails/?id=2309314482")
-			continue
+	// fmt.Println("当前平台  " + runtime.GOOS)
+	if ReDownLink == "" {
+		for {
+			fmt.Println("请输入包含ID的连接(可 鼠标右键粘贴)：")
+			//当程序只是到fmt.Scanln(&name)程序会停止执行等待用户输入
+			fmt.Scanln(&Link)
+
+			//Link = "https://steamcommunity.com/sharedfiles/filedetails/?id=2332307710&searchtext="
+			//ReDownloadLink = Link
+			if !gstr.ContainsI(Link, "https://") {
+				fmt.Println("不是正确的https  ID连接，例如 https://steamcommunity.com/sharedfiles/filedetails/?id=2309314482")
+				continue
+			}
+			if !gstr.ContainsI(Link, "?id=") {
+				fmt.Println("连接不包含ID，例如 https://steamcommunity.com/sharedfiles/filedetails/?id=2309314482")
+				continue
+			}
+			break
 		}
-		if !gstr.ContainsI(Link, "?id=") {
-			fmt.Println("连接不包含ID，例如 https://steamcommunity.com/sharedfiles/filedetails/?id=2309314482")
-			continue
-		}
-		break
+	} else {
+		// 先将变量放入ReDownloadLink 节约代码 再将ReDownloadLink 还原到默认值。
+		fmt.Println("")
+		fmt.Println("=======即将开始重新下载============")
+		time.Sleep(time.Second * 6)
+		Link = ReDownLink
+		ReDownloadLink = ""
 	}
+
 	fileID, _ := gregex.MatchString(`id=\d+`, Link)
 
 	fileID, _ = gregex.MatchString(`\d+`, fileID[0])
@@ -235,21 +250,27 @@ func listenForMain(APIUrl string) {
 				panic(err)
 			}
 			progress, _ = strconv.ParseInt(j.GetString(uuid+".progress"), 10, 64)
+
 			if strings.Index(j.GetString(uuid+".progressText"), "failed") != -1 {
 				// 服务端下载失败
-				fmt.Println("服务器端下载失败  等待30秒后重试。  ")
-				fmt.Println("请复制原始Link 重新下次下载   " + Link)
-				var exitScan string
-				_, _ = fmt.Scan(&exitScan)
+				fmt.Println("服务器端下载失败  稍后后重试。  ")
+				fmt.Println("请复制原始Link 开始重新下载（即将重试）   " + Link)
+
+				ReDownloadLink = Link
+				break //跳出 上级for循环   for progress < int64(150) {
 			}
 			fmt.Println("服务器下载进度    " + strconv.FormatInt(progress, 10))
 			// {"820a3912-91f3-4174-9edd-40676a1559f4":{"age":76,"status":"error","progress":0,"progressText":"download failed: no steam client available, try again in a minute","downloadError":"never transmitted"}}
 		}
-		fileDownload := APIUrl + "download/transmit?uuid=" + uuid
+		// 如果服务器没有下载失败，则开始下载
+		if ReDownloadLink == "" {
 
-		downloadAndUnzip(fileDownload, fileID[0])
+			fileDownload := APIUrl + "download/transmit?uuid=" + uuid
+
+			downloadAndUnzip(fileDownload, fileID[0])
+		}
 	}
-	// 等待用户关闭（输入）
+
 }
 
 func main() {
@@ -309,7 +330,7 @@ func main() {
 			if len(resp.Headers) != 0 {
 				// log.Printf("received headers: %s", resp.Headers)
 
-				if strings.Index(resp.URL, "status") != -1 {
+				if strings.Index(resp.URL, "/download/status") != -1 {
 					fmt.Println("找到API啦！！  " + resp.URL)
 
 					RespURL, err := gregex.MatchString(`https://.+/api/`, resp.URL)
@@ -334,21 +355,24 @@ func main() {
 		chromedp.WaitVisible(`body`, chromedp.BySearch),
 	)
 	for {
-		listenForMain(APIUrl)
-		// 自动重启壁纸软件
-		exec.Command(`taskkill`, `/F`, `/IM`, `wallpaper64.exe`).Run()
-		dir, _ := os.Getwd()
-		//fmt.Println("当前路径：", dir)
-		exec.Command(dir + `\wallpaper64.exe`).Start()
-		time.Sleep(time.Second * 2)
-		exec.Command(dir + `\wallpaper64.exe`).Start()
-		//exec.Command(`start`, dir+`\wallpaper64.exe`).Run()
-		println("")
-		println("软件开源地址：https://github.com/user1121114685/Wallpaper_Engine")
-		println("执行完毕........已重启 Wallpaper Engine （如遇未运行，请手动打开）.....")
-		println("")
-		println("........本软件可以多开，不需要等等下载完成.....")
-		println("")
+		listenForMain(APIUrl, ReDownloadLink)
+		// 当不需要重下的时候 才开始重启
+		if ReDownloadLink == "" {
+			// 自动重启壁纸软件
+			exec.Command(`taskkill`, `/F`, `/IM`, `wallpaper64.exe`).Run()
+			dir, _ := os.Getwd()
+			//fmt.Println("当前路径：", dir)
+			exec.Command(dir + `\wallpaper64.exe`).Start()
+			time.Sleep(time.Second * 2)
+			exec.Command(dir + `\wallpaper64.exe`).Start()
+			//exec.Command(`start`, dir+`\wallpaper64.exe`).Run()
+			println("")
+			println("软件开源地址：https://github.com/user1121114685/Wallpaper_Engine")
+			println("执行完毕........已重启 Wallpaper Engine （如遇未运行，请手动打开）.....")
+			println("")
+			println("........本软件可以多开，不需要等等下载完成.....")
+			println("")
+		}
 	}
 
 }
