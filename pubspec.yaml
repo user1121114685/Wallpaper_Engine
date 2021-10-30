@@ -97,13 +97,3 @@ flutter:
   # For details regarding fonts from package dependencies,
   # see https://flutter.dev/custom-fonts/#from-packages
   
-ffigen: # dart run ffigen
-  name: fake115Littleluck
-  description: Bindings to `lib/fake115/fake115.h`.
-  output: 'lib/fake115/fake115Littleluck.dart'
-  headers:
-    entry-points:
-      - 'android\app\src\main\jniLibs\arm64-v8a\libfake115.h'
-
-  compiler-opts:
-  - '-I lib/fake115/include'

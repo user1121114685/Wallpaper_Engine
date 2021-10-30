@@ -3,14 +3,15 @@
 ## 开源说明
 
 本项目旨在练习golang 和减少劳动力。    
-
+flutter build windows 
+手动移动  build\windows\runner\Release\data\assets 到 build\windows\runner\Release
 
 
 
 ## 使用方法
 
 **需要Chrome**    
-下载地址：https://github.com/user1121114685/Wallpaper_Engine/raw/main/build/windows/runner/Release/Release.zip      
+下载地址：https://github.com/user1121114685/Wallpaper_Engine/raw/main/Release.zip      
 
 下载前请选择 wallpaper64.exe 的位置
 ![目录](https://github.com/user1121114685/Wallpaper_Engine/blob/main/QQ%E6%88%AA%E5%9B%BE20201212152332.png?raw=true)     

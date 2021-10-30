@@ -357,7 +357,7 @@ void launchURL(String url) async =>
 
 Future getAPIforDLL() async {
   if (ApiURL == "") {
-    var dll = ffi.DynamicLibrary.open('assets/steamdownload.dll');
+    var dll = ffi.DynamicLibrary.open(r'assets/steamdownload.dll');
 
     // https://www.coder.work/article/7192255 重要得参考 FFI得使用
     // GOLANG中 导出的函数要首字大写 getAPI是错的 并且还需加上注释 //export GetAPI
