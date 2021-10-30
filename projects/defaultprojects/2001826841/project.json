@@ -1,0 +1,22 @@
+{
+	"contentrating" : "Everyone",
+	"file" : "scene.json",
+	"general" : 
+	{
+		"properties" : 
+		{
+			"schemecolor" : 
+			{
+				"order" : 0,
+				"text" : "ui_browse_properties_scheme_color",
+				"type" : "color",
+				"value" : "0.6784313725490196 0.8470588235294118 0.9019607843137255"
+			}
+		}
+	},
+	"preview" : "preview.jpg",
+	"tags" : [ "Girls" ],
+	"title" : "刘亦菲",
+	"type" : "scene",
+	"workshopid" : "2001826841"
+}

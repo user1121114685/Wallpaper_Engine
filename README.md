@@ -10,12 +10,12 @@
 ## 使用方法
 
 **需要Chrome**    
-下载地址：https://github.com/user1121114685/Wallpaper_Engine/raw/main/steamdownload.zip    
+下载地址：https://github.com/user1121114685/Wallpaper_Engine/raw/main/build/windows/runner/Release/Release.zip      
 
-1.将本软件放入 Wallpaper Engine 根目录，目录下保证有wallpaper64.exe
-如果确实是根目录，没有wallpaper64.exe，那就自己重命名一个。   
+下载前请选择 wallpaper64.exe 的位置
 ![目录](https://github.com/user1121114685/Wallpaper_Engine/blob/main/QQ%E6%88%AA%E5%9B%BE20201212152332.png?raw=true)     
-2.双击本软件，按需求选择下载网站。开始使用    
+
+
 ![使用](https://github.com/user1121114685/Wallpaper_Engine/blob/main/QQ%E6%88%AA%E5%9B%BE20201212152230.png?raw=true)    
 ---
 ## 如果对你有所帮助，也可以对我进行捐赠。那撒我也不废话，下面是二维码。

@@ -5,17 +5,15 @@
     "version": "0.2.0",
     "configurations": [
         {
-
-            
-            "name": "Launch",
-            "type": "go",
+            "name": "wallpaper_engine_workshop_downloader",
             "request": "launch",
-            "mode": "auto",
-            "program": "${fileDirname}",
-            "env": {},
-            "args": []
-            
+            "type": "dart"
+        },
+        {
+            "name": "wallpaper_engine_workshop_downloader (profile mode)",
+            "request": "launch",
+            "type": "dart",
+            "flutterMode": "profile"
         }
-      
     ]
 }
