@@ -2,9 +2,9 @@
 一个便捷的创意工坊下载器
 ## 开源说明
 
-本项目旨在练习golang 和减少劳动力。    
-flutter build windows 
-手动移动  build\windows\runner\Release\data\assets 到 build\windows\runner\Release
+本项目旨在练习golang 和 flutter 并减少劳动力。    
+flutter build windows     
+
 
 
 

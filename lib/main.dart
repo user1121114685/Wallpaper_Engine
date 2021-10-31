@@ -4,7 +4,6 @@ import 'dart:ffi' as ffi;
 
 import 'package:archive/archive.dart';
 import 'package:ffi/ffi.dart';
-
 import 'package:dio/dio.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
@@ -23,10 +22,13 @@ typedef GetURL = ffi.Pointer<Utf8> Function(); // 这里是操作的dart的返�
 //  上面两个必须是同一类型....
 // E:\Flutter_project\wallpaper_engine_workshop_downloader\windows\runner\main.cpp 改名字
 
-String VerSion = "0005";
+String VerSion = "0006";
 // List LogText = ["版本号:" + VerSion];
 /// 第一步 定义 ValueNotifier
-ValueNotifier<List> LogText = ValueNotifier<List>(["版本号:" + VerSion]);
+List LogText = ["版本号:" + VerSion];
+
+/// 第一步 定义 ValueNotifier
+ValueNotifier<String> LogsNotifier = ValueNotifier<String>("");
 String ApiURL = "";
 bool restartWE = false;
 String wallpaper64 = "";
@@ -38,6 +40,7 @@ class MyApp extends StatelessWidget {
   const MyApp({Key? key}) : super(key: key);
 
   // This widget is the root of your application.
+
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
@@ -128,13 +131,18 @@ class _MyHomePageState extends State<MyHomePage> {
                         }
                       },
                       icon: const Icon(Icons.favorite),
-                      label: Text(snapshot.data == null
-                          ? "没找到wallpaper64.exe"
-                          : "已找到wallpaper64.exe")); //此处是三元运算。
+                      label: Text(
+                          // 如果字符串中包含了 壁纸路径 就显示已找到
+                          snapshot.data.toString().contains("wallpaper64.exe")
+                              ? "已选择wallpaper64.exe"
+                              : "未选择wallpaper64.exe")); //此处是三元运算。
                 },
               ),
               FutureBuilder(
-                future: getAPIforDLL(),
+                future: getAPIforDLL().then((value) {
+                  // 得到结果后还是刷新下界面嘛
+                  setState(() {});
+                }),
                 // initialData: const Text("正在获取API"),
                 builder: (BuildContext context, AsyncSnapshot snapshot) {
                   // snapshot 接收 future 返回的值
@@ -145,6 +153,7 @@ class _MyHomePageState extends State<MyHomePage> {
                         }
 
                         //https://www.iplaysoft.com/tools/chrome/
+                        setState(() {});
                       },
                       icon: const Icon(Icons.laptop_chromebook),
                       label: Text(snapshot.data.toString() != "未安装Chrome"
@@ -267,10 +276,10 @@ class _MyHomePageState extends State<MyHomePage> {
                         print(fileid);
                         if (fileid == null) {
                           urlController.clear();
-                          LogText.value.insert(0, "请输入正确的ID,连接包含id=xxxxxx");
+                          logTextAdd("请输入正确的ID,连接包含id=xxxxxx");
                         } else {
                           fileid = fileid.substring(3);
-                          LogText.value.insert(0, "ID正确  开始下载...");
+                          logTextAdd("ID正确  开始下载...");
                           print(fileid);
                           downlaodAndUnzip(fileid.toString());
                         }
@@ -289,13 +298,13 @@ class _MyHomePageState extends State<MyHomePage> {
             ],
           ),
           ValueListenableBuilder(
-              valueListenable: LogText,
+              valueListenable: LogsNotifier,
               builder: (context, value, child) {
                 return Expanded(
                   child: ListView.builder(
-                    itemCount: LogText.value.length,
+                    itemCount: LogText.length,
                     itemBuilder: (BuildContext context, int index) {
-                      return Text(LogText.value[index]); // 算了 加个P时间 毫无意义
+                      return Text(LogText[index]); // 算了 加个P时间 毫无意义
                     },
                   ),
                 );
@@ -344,7 +353,7 @@ void launchURL(String url) async =>
 //       []).then((value) async {
 //     try {
 //       var resp = await Dio().get("http://127.0.0.1:9191/api");
-//       LogText.value.insert(0,resp.toString());
+//       logTextAdd(resp.toString());
 
 //       ApiURL = resp.toString();
 //     } catch (e) {
@@ -357,15 +366,20 @@ void launchURL(String url) async =>
 
 Future getAPIforDLL() async {
   if (ApiURL == "") {
-    var dll = ffi.DynamicLibrary.open(r'assets/steamdownload.dll');
-
+    var dll = ffi.DynamicLibrary.open(
+        r'data/flutter_assets/assets/steamdownload.dll');
+    // 下面是调试代码
+    //     var dll = ffi.DynamicLibrary.open(
+    // r'assets/steamdownload.dll');
+// 把我弄不会了，日了。。。。 看来只能修改pubspec.yaml 这样与实际的不一致的地方了
+// 你以为我想放这里吗？编译的时候直接放进去了。。。data\flutter_assets\assets\steamdownload.dll
     // https://www.coder.work/article/7192255 重要得参考 FFI得使用
     // GOLANG中 导出的函数要首字大写 getAPI是错的 并且还需加上注释 //export GetAPI
     final GetURL geturl =
         dll.lookup<ffi.NativeFunction<GOFunc>>('GetAPI').asFunction();
     var url = geturl();
     print("找到了API    " + url.cast<Utf8>().toDartString());
-    LogText.value.insert(0, url.cast<Utf8>().toDartString());
+    logTextAdd(url.cast<Utf8>().toDartString());
     if (url.cast<Utf8>().toDartString() != "未安装Chrome") {
       ApiURL = url.cast<Utf8>().toDartString();
     }
@@ -407,18 +421,19 @@ Future downlaodAndUnzip(String fileid) async {
               .toString()
               .contains("failed")) {
             //包含 failed 下载失败
-            LogText.value.insert(0, fileid + "  下载失败");
+            logTextAdd(fileid + "  下载失败");
+
             break;
           } else {
             // print("object");
             // print("下载进度" + serverStatus[newuuid]["progress"]);
             if (serverStatus[newuuid]["progress"] > 150) {
-              LogText.value.insert(0, fileid + "  服务器下载成功...开始下载到本地");
+              logTextAdd(fileid + "  服务器下载成功...开始下载到本地");
               break;
             } else {
               //等待1秒}
-              LogText.value.insert(
-                  0, fileid + "  服务器下载进度" + serverStatus[newuuid]["progress"]);
+              logTextAdd(
+                  fileid + "  服务器下载进度" + serverStatus[newuuid]["progress"]);
               await delayedSeconds(1);
             }
           }
@@ -431,10 +446,10 @@ Future downlaodAndUnzip(String fileid) async {
       await Dio().download(
           ApiURL + "download/transmit?uuid=" + newuuid, dlDir + fileid + ".zip",
           onReceiveProgress: (int cont, int total) {
-        LogText.value.insert(
-            0, fileid + " 已下载  " + (cont / 1048576).toStringAsFixed(2) + "M");
+        logTextAdd(
+            fileid + " 已下载  " + (cont / 1048576).toStringAsFixed(2) + "M");
       });
-      LogText.value.insert(0, "下载完成开始解压.....");
+      logTextAdd("下载完成开始解压.....");
       // 解压文件
       // Read the Zip file from disk.
       final bytes = File(dlDir + fileid + ".zip").readAsBytesSync();
@@ -446,8 +461,8 @@ Future downlaodAndUnzip(String fileid) async {
       for (final file in archive) {
         final filename = file.name;
         if (file.isFile) {
-          LogText.value.insert(
-              0, "正在解压  /projects/defaultprojects/" + fileid + "/" + filename);
+          logTextAdd(
+              "正在解压  /projects/defaultprojects/" + fileid + "/" + filename);
           final data = file.content as List<int>;
           File(dlDir + "/projects/defaultprojects/" + fileid + "/" + filename)
             ..createSync(recursive: true)
@@ -461,7 +476,7 @@ Future downlaodAndUnzip(String fileid) async {
               .create(recursive: true);
         }
       }
-      LogText.value.insert(0, "已解压完成.....");
+      logTextAdd("已解压完成.....");
       //清空输入框
       urlController.clear();
       // 删除临时文件
@@ -473,16 +488,24 @@ Future downlaodAndUnzip(String fileid) async {
         Process.run("taskkill", ["/F", "/IM", "wallpaper64.exe"])
             .then((s) async {
           await Process.run(wallpaper64, []);
-          await delayedSeconds(2);
-          await Process.run(wallpaper64, []);
+          await delayedSeconds(2).then((value) async {
+            await Process.run(wallpaper64, []);
+          });
         });
       }
     } catch (e) {}
   } else {
-    LogText.value.insert(0, "请先选择wallpaper64.exe");
+    logTextAdd("请先选择wallpaper64.exe");
   }
 }
 
 Future delayedSeconds(int second) async {
   await Future.delayed(Duration(seconds: second));
+}
+
+Future logTextAdd(String log) async {
+  //LIST的 修改iterable的内容 是不会改变iterable的对象的
+// 所以 Notifier 不能使用LIST
+  LogText.insert(0, log);
+  LogsNotifier.value = log;
 }
