@@ -22,7 +22,7 @@ typedef GetURL = ffi.Pointer<Utf8> Function(); // 这里是操作的dart的返�
 //  上面两个必须是同一类型....
 // E:\Flutter_project\wallpaper_engine_workshop_downloader\windows\runner\main.cpp 改名字
 
-String VerSion = "0008";
+String VerSion = "0009";
 // List LogText = ["版本号:" + VerSion];
 /// 第一步 定义 ValueNotifier
 List<String> LogText = ["版本号:" + VerSion];
@@ -454,26 +454,49 @@ Future downlaodAndUnzip(String fileid) async {
             LogsNotifier.value = log;
           }
         } catch (e) {
-          logTextAdd(e.toString());
+          logTextAdd("服务器下载错误  " + e.toString());
         }
         await delayedSeconds(1);
       }
       // 获取下载路径
       String dlDir = await getPreferences("wallpaper64.exe");
       dlDir = dlDir.replaceAll("wallpaper64.exe", "");
+      // 文件下载信息
+// https://node03.steamworkshopdownloader.io/prod/api/details/file
+// 存放 文件大小
+      String fileSize = "";
+      try {
+        Response detail =
+            await Dio().post(ApiURL + "details/file", data: "[" + fileid + "]");
+        List<dynamic> fileDetails = jsonDecode(detail.data);
+        fileSize = fileDetails[0]["file_size"].toString();
+        if (fileSize != "") {
+          fileSize =
+              "/" + (int.parse(fileSize) / 1048576).toStringAsFixed(2) + "M";
+        }
+      } catch (e) {
+        logTextAdd("获取文件信息错误  " + e.toString());
+      }
+
 // 是否已经单独添加一行log?
       bool adddownloadlog = false;
       await Dio().download(
           ApiURL + "download/transmit?uuid=" + newuuid, dlDir + fileid + ".zip",
           onReceiveProgress: (int cont, int total) {
         if (adddownloadlog == true) {
-          String log =
-              fileid + " 已下载  " + (cont / 1048576).toStringAsFixed(2) + "M";
+          String log = fileid +
+              " 已下载  " +
+              (cont / 1048576).toStringAsFixed(2) +
+              "M" +
+              fileSize;
           LogText[0] = log;
           LogsNotifier.value = log;
         } else {
-          logTextAdd(
-              fileid + " 已下载  " + (cont / 1048576).toStringAsFixed(2) + "M");
+          logTextAdd(fileid +
+              " 已下载  " +
+              (cont / 1048576).toStringAsFixed(2) +
+              "M" +
+              fileSize);
           adddownloadlog = true;
         }
       });
