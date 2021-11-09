@@ -22,7 +22,7 @@ typedef GetURL = ffi.Pointer<Utf8> Function(); // 这里是操作的dart的返�
 //  上面两个必须是同一类型....
 // E:\Flutter_project\wallpaper_engine_workshop_downloader\windows\runner\main.cpp 改名字
 
-String VerSion = "0007";
+String VerSion = "0008";
 // List LogText = ["版本号:" + VerSion];
 /// 第一步 定义 ValueNotifier
 List<String> LogText = ["版本号:" + VerSion];
@@ -261,6 +261,22 @@ class _MyHomePageState extends State<MyHomePage> {
                 child: TextField(
                   autofocus: true,
                   controller: urlController,
+                  // 当textInputAction: TextInputAction.done, 输入结束时，启用 onEditingComplete函数
+                  textInputAction: TextInputAction.done,
+                  onEditingComplete: () {
+                    RegExp exp = RegExp(r"id=\d+");
+                    var fileid = exp.stringMatch(urlController.text);
+
+                    if (fileid == null) {
+                      urlController.clear();
+                      logTextAdd("请输入正确的ID,连接包含id=xxxxxx");
+                    } else {
+                      fileid = fileid.substring(3);
+                      logTextAdd("ID正确  开始下载...");
+
+                      downlaodAndUnzip(fileid.toString());
+                    }
+                  },
                   decoration: const InputDecoration(
                       labelText: "输入下载地址(包含id=xxxxxxxx)",
                       hintText:
@@ -273,25 +289,16 @@ class _MyHomePageState extends State<MyHomePage> {
                       onPressed: () {
                         RegExp exp = RegExp(r"id=\d+");
                         var fileid = exp.stringMatch(urlController.text);
-                        print(fileid);
+
                         if (fileid == null) {
                           urlController.clear();
                           logTextAdd("请输入正确的ID,连接包含id=xxxxxx");
                         } else {
                           fileid = fileid.substring(3);
                           logTextAdd("ID正确  开始下载...");
-                          print(fileid);
+
                           downlaodAndUnzip(fileid.toString());
                         }
-                        // if (ApiURL == "") {
-                        //   // getAPIurl().then((value) {
-                        //   //   Future.delayed(const Duration(seconds: 20), () {
-                        //   //     Process.run("taskkill", ["/F", "/IM", "steamdownload.exe"]);
-                        //   //   });
-                        //   // });
-                        //   getAPIforDLL();
-                        // }
-                        setState(() {});
                       },
                       icon: const Icon(Icons.download),
                       label: const Text("下载壁纸"))),
@@ -378,8 +385,8 @@ Future getAPIforDLL() async {
     final GetURL geturl =
         dll.lookup<ffi.NativeFunction<GOFunc>>('GetAPI').asFunction();
     var url = geturl();
-    print("找到了API    " + url.cast<Utf8>().toDartString());
-    logTextAdd(url.cast<Utf8>().toDartString());
+
+    logTextAdd("找到了API    " + url.cast<Utf8>().toDartString());
     if (url.cast<Utf8>().toDartString() != "未安装Chrome") {
       ApiURL = url.cast<Utf8>().toDartString();
     }
@@ -392,14 +399,13 @@ Future downlaodAndUnzip(String fileid) async {
   // String wallpaper64 = getPreferences("wallpaper64.exe").toString();
   if (wallpaper64 != "null") {
     try {
-      // 向服务器发送下载请求
+      // 向服务器发送下载请求  常量与变量才使用+连接，常量与常量可以直接连接
       var resp = await Dio().post(ApiURL + "download/request",
-          data: "{" +
-              "\"publishedFileId\":" +
+          data: "{" "\"publishedFileId\":" +
               fileid +
-              "," +
-              "\"collectionId\":null,\"extract\":true,\"hidden\":false,\"direct\":false,\"autodownload\":false" +
-              "}");
+              ","
+                  "\"collectionId\":null,\"extract\":true,\"hidden\":false,\"direct\":false,\"autodownload\":false"
+                  "}");
       // 得到返回的UUID
 // {"uuid":"07e15f2f-c4e2-44f3-a424-f367f1d3c961"}
 
@@ -408,15 +414,16 @@ Future downlaodAndUnzip(String fileid) async {
       //resp.data["uuid"];
       String newuuid = uuid["uuid"];
       //查询服务器下载状态
-
+      bool addProgress = false;
       while (true) {
         try {
-          var status = await Dio().post(ApiURL + "download/status",
+          Response status = await Dio().post(ApiURL + "download/status",
               data: "{\"uuids\":[\"" + newuuid + "\"]}");
           // 返回下载进度
           //{"07e15f2f-c4e2-44f3-a424-f367f1d3c961":{"age":6,"status":"retrieved","progress":100,"progressText":"retrieving: 100%","downloadError":"never transmitted"}}
           Map<String, dynamic> serverStatus = jsonDecode(status.data);
           // print(serverStatus[newuuid]["progressText"]);
+
           if (serverStatus[newuuid]["progressText"]
               .toString()
               .contains("failed")) {
@@ -424,20 +431,32 @@ Future downlaodAndUnzip(String fileid) async {
             logTextAdd(fileid + "  下载失败");
 
             break;
-          } else {
-            // print("object");
-            // print("下载进度" + serverStatus[newuuid]["progress"]);
-            if (serverStatus[newuuid]["progress"] > 150) {
-              logTextAdd(fileid + "  服务器下载成功...开始下载到本地");
-              break;
-            } else {
-              //等待1秒}
-              logTextAdd(
-                  fileid + "  服务器下载进度" + serverStatus[newuuid]["progress"]);
-              await delayedSeconds(1);
-            }
           }
-        } catch (e) {}
+          // print("object");
+          // print("下载进度" + serverStatus[newuuid]["progress"]);
+          if (serverStatus[newuuid]["progress"] > 150) {
+            logTextAdd(fileid + "  服务器下载成功...开始下载到本地");
+            break;
+          }
+          // 还是为了直观好看 只显示一行log
+          if (addProgress == false) {
+            logTextAdd(fileid +
+                "  服务器下载进度" +
+                serverStatus[newuuid]["progress"].toString() +
+                "%");
+            addProgress = true;
+          } else {
+            String log = fileid +
+                "  服务器下载进度" +
+                serverStatus[newuuid]["progress"].toString() +
+                "%";
+            LogText[0] = log;
+            LogsNotifier.value = log;
+          }
+        } catch (e) {
+          logTextAdd(e.toString());
+        }
+        await delayedSeconds(1);
       }
       // 获取下载路径
       String dlDir = await getPreferences("wallpaper64.exe");
