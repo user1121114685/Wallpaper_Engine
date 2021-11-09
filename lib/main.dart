@@ -22,10 +22,10 @@ typedef GetURL = ffi.Pointer<Utf8> Function(); // 这里是操作的dart的返�
 //  上面两个必须是同一类型....
 // E:\Flutter_project\wallpaper_engine_workshop_downloader\windows\runner\main.cpp 改名字
 
-String VerSion = "0006";
+String VerSion = "0007";
 // List LogText = ["版本号:" + VerSion];
 /// 第一步 定义 ValueNotifier
-List LogText = ["版本号:" + VerSion];
+List<String> LogText = ["版本号:" + VerSion];
 
 /// 第一步 定义 ValueNotifier
 ValueNotifier<String> LogsNotifier = ValueNotifier<String>("");
@@ -442,12 +442,21 @@ Future downlaodAndUnzip(String fileid) async {
       // 获取下载路径
       String dlDir = await getPreferences("wallpaper64.exe");
       dlDir = dlDir.replaceAll("wallpaper64.exe", "");
-
+// 是否已经单独添加一行log?
+      bool adddownloadlog = false;
       await Dio().download(
           ApiURL + "download/transmit?uuid=" + newuuid, dlDir + fileid + ".zip",
           onReceiveProgress: (int cont, int total) {
-        logTextAdd(
-            fileid + " 已下载  " + (cont / 1048576).toStringAsFixed(2) + "M");
+        if (adddownloadlog == true) {
+          String log =
+              fileid + " 已下载  " + (cont / 1048576).toStringAsFixed(2) + "M";
+          LogText[0] = log;
+          LogsNotifier.value = log;
+        } else {
+          logTextAdd(
+              fileid + " 已下载  " + (cont / 1048576).toStringAsFixed(2) + "M");
+          adddownloadlog = true;
+        }
       });
       logTextAdd("下载完成开始解压.....");
       // 解压文件

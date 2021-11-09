@@ -29,7 +29,7 @@
 .packages
 .pub-cache/
 .pub/
-
+/server/
 /build/
 
 # Web related
