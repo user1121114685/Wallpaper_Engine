@@ -45,3 +45,7 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# 不需要的测试文件
+/old/projects/
+/old/*.tmp

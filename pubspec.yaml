@@ -40,6 +40,8 @@ dependencies:
   dio: ^4.0.1
   archive: ^3.1.6
   provider: ^6.0.1
+  http: ^0.13.4
+
 
 
  
@@ -70,6 +72,7 @@ flutter:
   # To add assets to your application, add an assets section, like this:
   assets:
     - assets/steamdownload.dll
+    - assets/aria2c.exe
   #   - images/a_dot_ham.jpeg
 
   # An image asset can refer to one or more resolution-specific "variants", see

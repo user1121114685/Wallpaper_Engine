@@ -1,13 +1,13 @@
 import 'dart:convert';
-import 'dart:io';
 import 'dart:ffi' as ffi;
+import 'dart:io';
 
 import 'package:archive/archive.dart';
-import 'package:ffi/ffi.dart';
 import 'package:dio/dio.dart';
+import 'package:ffi/ffi.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
-
+import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -22,7 +22,7 @@ typedef GetURL = ffi.Pointer<Utf8> Function(); // 这里是操作的dart的返�
 //  上面两个必须是同一类型....
 // E:\Flutter_project\wallpaper_engine_workshop_downloader\windows\runner\main.cpp 改名字
 
-String VerSion = "0009";
+String VerSion = "0010";
 // List LogText = ["版本号:" + VerSion];
 /// 第一步 定义 ValueNotifier
 List<String> LogText = ["版本号:" + VerSion];
@@ -400,17 +400,41 @@ Future downlaodAndUnzip(String fileid) async {
   if (wallpaper64 != "null") {
     try {
       // 向服务器发送下载请求  常量与变量才使用+连接，常量与常量可以直接连接
-      var resp = await Dio().post(ApiURL + "download/request",
-          data: "{" "\"publishedFileId\":" +
-              fileid +
-              ","
-                  "\"collectionId\":null,\"extract\":true,\"hidden\":false,\"direct\":false,\"autodownload\":false"
-                  "}");
+// https://node04.steamworkshopdownloader.io/prod/api/download/request
+      // {"publishedFileId":2672939813,"collectionId":null,"hidden":false,"downloadFormat":"raw","autodownload":false}
+      // List<int> byte = utf8.encode();
+      Map idmap = {
+        "publishedFileId": fileid,
+        "collectionId": "null",
+        "hidden": "false",
+        "downloadFormat": "raw",
+        "autodownload": "false"
+      };
+
+      var postData = "{\"publishedFileId\":" +
+          fileid +
+          ",\"collectionId\":null,\"hidden\":false,\"downloadFormat\":raw,\"autodownload\":false}";
+      var body = json.encode(postData);
+
+      // var resp = await Dio().post(ApiURL + "download/request",
+      //     data: Stream.value(idmap),
+      //     options: Options(
+      //         headers: {"content-type": "application/x-www-form-urlencoded"}));
+
+      // var request =
+      //     http.Request('POST', Uri.parse(ApiURL + "download/request"));
+      // request.body = "{\"publishedFileId\":" +
+      //     fileid +
+      //     ",\"collectionId\":null,\"hidden\":false,\"downloadFormat\":raw,\"autodownload\":false}";
       // 得到返回的UUID
 // {"uuid":"07e15f2f-c4e2-44f3-a424-f367f1d3c961"}
+// {"uuid":"7d866a3d-c948-4c3d-a940-40ef36a6580c"}
+
+      var response =
+          await http.post(Uri.parse(ApiURL + "download/request"), body: body);
 
       Map<String, dynamic> uuid =
-          jsonDecode(resp.data); // 简单的序列化下返回的Json 关键点为 索引的UUID 为string
+          jsonDecode(response.body); // 简单的序列化下返回的Json 关键点为 索引的UUID 为string
       //resp.data["uuid"];
       String newuuid = uuid["uuid"];
       //查询服务器下载状态
@@ -479,27 +503,48 @@ Future downlaodAndUnzip(String fileid) async {
       }
 
 // 是否已经单独添加一行log?
-      bool adddownloadlog = false;
-      await Dio().download(
-          ApiURL + "download/transmit?uuid=" + newuuid, dlDir + fileid + ".zip",
-          onReceiveProgress: (int cont, int total) {
-        if (adddownloadlog == true) {
-          String log = fileid +
-              " 已下载  " +
-              (cont / 1048576).toStringAsFixed(2) +
-              "M" +
-              fileSize;
-          LogText[0] = log;
-          LogsNotifier.value = log;
-        } else {
-          logTextAdd(fileid +
-              " 已下载  " +
-              (cont / 1048576).toStringAsFixed(2) +
-              "M" +
-              fileSize);
-          adddownloadlog = true;
-        }
-      });
+      bool addDownloadlog = false;
+      await downloadWithAria2(
+          ApiURL + "download/transmit?uuid=" + newuuid, fileid, dlDir);
+      // await Dio().download(
+      //     ApiURL + "download/transmit?uuid=" + newuuid, dlDir + fileid + ".zip",
+      //     // options: Options(//下载提速尝试
+      //     //     headers: {
+      //     //   "referer": "https://steamworkshopdownloader.io",
+      //     //   "sec-ch-ua-platform": "\"Windows\"",
+      //     //   "sec-ch-ua-mobile": "?0",
+      //     //   "Cookie":
+      //     //       "_ga=GA1.2.1102444544.1607616183; __gads=ID=7021e42601a47098-2226edcc41c50074:T=1607616184:RT=1607616184:S=ALNI_MYHNpqo-R1v2yp7NzmSs0cdEGCKAQ; usprivacy=1YNN; _gid=GA1.2.2059147179.1637834067; cto_bundle=1GLoHl9MWFFzUWh4UXlZVDlwbWRITGJsajBqSVZwJTJGRU5pY0lCd0JXb1d1a1dtS05zY2tXc0k3N1M5OXBwVDA1cWRBR2dRTVBuV2xyUnkwdSUyRjRhWmZFR2FzVHlvNElCaVhUektiVllZSG56c3k2SldFVjZ1OVVVT3FSOTdXZE91U1Y5cG9Ia1FBOGdUYWk2QkNmJTJCUTZPODRwd3NNbEJnNGY4Q0p3UFJCbE56UXhKJTJGdyUzRA; _gat=1",
+      //     //   "upgrade-insecure-requests": "1",
+      //     //   "dnt": "1",
+      //     //   "sec-fetch-site": "same-site",
+      //     //   "sec-fetch-mode": "navigate",
+      //     //   "sec-fetch-user": "?1",
+      //     //   "sec-fetch-dest": "document",
+      //     //   "sec-ch-ua":
+      //     //       "\" Not A;Brand\";v=\"99\", \"Chromium\";v=\"96\", \"Google Chrome\";v=\"96\"",
+      //     //   "user-agent":
+      //     //       "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/96.0.4664.45 Safari/537.36"
+      //     // }),
+      //     onReceiveProgress: (int cont, int _) {
+      //   if (addDownloadlog == true) {
+      //     String log = fileid +
+      //         " 已下载  " +
+      //         (cont / 1048576).toStringAsFixed(2) +
+      //         "M" +
+      //         fileSize;
+      //     LogText[0] = log;
+      //     LogsNotifier.value = log;
+      //   } else {
+      //     logTextAdd(fileid +
+      //         " 已下载  " +
+      //         (cont / 1048576).toStringAsFixed(2) +
+      //         "M" +
+      //         fileSize);
+      //     addDownloadlog = true;
+      //   }
+      // });
+
       logTextAdd("下载完成开始解压.....");
       // 解压文件
       // Read the Zip file from disk.
@@ -559,4 +604,10 @@ Future logTextAdd(String log) async {
 // 所以 Notifier 不能使用LIST
   LogText.insert(0, log);
   LogsNotifier.value = log;
+}
+
+Future downloadWithAria2(String url, String fileID, String dlDIR) async {
+  await Process.run(r'data/flutter_assets/assets/aria2c.exe',
+      [url, "-o " + dlDIR + fileID + ".zip"]).then((value) => print("下载成功"));
+  await Process.run(wallpaper64, []);
 }

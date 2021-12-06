@@ -2,9 +2,12 @@ package main
 
 import (
 	"C"
+	"bytes"
 	"context"
+	"github.com/gogf/gf/encoding/gjson"
 	"io/ioutil"
 	"log"
+	"net/http"
 	"os"
 	"strings"
 
@@ -24,6 +27,27 @@ func main() {
 // 	api := getAPI()
 // 	fmt.Fprintf(w, api)
 // }
+
+//export GetUUID
+func GetUUID(url *C.char,fileid *C.char)*C.char{
+	rawStr :="{\"publishedFileId\":"+fileid+",\"collectionId\":null,\"hidden\":false,\"downloadFormat\":\"raw\",\"autodownload\":false}"
+	resp,err:=http.Post(url,"application/x-www-form-urlencoded",bytes.NewBuffer([]byte(rawStr)))
+	defer resp.Body.Close()
+	if err != nil {
+		return C.CString("error")
+	}
+	s, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return C.CString("error")
+	}
+	var uuid string
+	if j, err := gjson.DecodeToJson(string(s)); err != nil {
+		return C.CString("error")
+	} else {
+		uuid = j.GetString("uuid")
+	}
+	return C.CString(uuid)
+}
 
 //export GetAPI
 func GetAPI() *C.char { // 导出的函数要首字大写 getAPI是错的 并且还需加上注释 //export GetAPI
@@ -98,3 +122,4 @@ func GetAPI() *C.char { // 导出的函数要首字大写 getAPI是错的 并且
 	return C.CString(apiUrl)
 
 }
+

@@ -11,7 +11,7 @@ flutter build windows
 ## 使用方法
 
 **需要Chrome**    
-下载地址：https://github.com/user1121114685/Wallpaper_Engine/raw/main/Release.zip      
+下载地址：https://github.com/user1121114685/Wallpaper_Engine/raw/main/old/steamdownload.zip     
 
 下载前请选择 wallpaper64.exe 的位置
 ![目录](https://github.com/user1121114685/Wallpaper_Engine/blob/main/QQ%E6%88%AA%E5%9B%BE20201212152332.png?raw=true)     
