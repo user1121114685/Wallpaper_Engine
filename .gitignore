@@ -31,7 +31,8 @@
 .pub/
 /server/
 /build/
-
+/wallpaper_engine_workshop_downloader/
+/data/
 # Web related
 lib/generated_plugin_registrant.dart
 
@@ -49,3 +50,4 @@ app.*.map.json
 # 不需要的测试文件
 /old/projects/
 /old/*.tmp
+wallpaper_engine_workshop_downloader.zip

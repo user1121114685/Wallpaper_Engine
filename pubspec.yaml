@@ -37,11 +37,7 @@ dependencies:
   url_launcher: ^6.0.12
   file_picker: ^4.1.6
   shared_preferences: ^2.0.8
-  dio: ^4.0.1
-  archive: ^3.1.6
-  provider: ^6.0.1
-  http: ^0.13.4
-
+  process_run: ^0.12.3+2
 
 
  
@@ -56,7 +52,7 @@ dev_dependencies:
   # activated in the `analysis_options.yaml` file located at the root of your
   # package. See that file for information about deactivating specific lint
   # rules and activating additional ones.
-  flutter_lints: ^1.0.0
+  flutter_lints: ^2.0.1
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
@@ -71,8 +67,8 @@ flutter:
 
   # To add assets to your application, add an assets section, like this:
   assets:
-    - assets/steamdownload.dll
-    - assets/aria2c.exe
+    - assets/steamcmd/steamcmd.exe
+
   #   - images/a_dot_ham.jpeg
 
   # An image asset can refer to one or more resolution-specific "variants", see
