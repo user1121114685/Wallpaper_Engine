@@ -17,7 +17,7 @@ Future main() async {
 //  上面两个必须是同一类型....
 // E:\Flutter_project\wallpaper_engine_workshop_downloader\windows\runner\main.cpp 改名字
 
-String VerSion = "V020";
+String VerSion = "V021";
 // List LogText = ["版本号:" + VerSion];
 /// 第一步 定义 ValueNotifier
 List<String> LogText = ["版本号:" + VerSion];
@@ -126,9 +126,10 @@ class _MyHomePageState extends State<MyHomePage> {
                 width: 20,
               ),
               // 因为需要建立软连接 所以需要管理员运行
-              Text("首次使用 需要以管理员权限运行！",style:TextStyle(
-                color: Colors.red[200],fontSize: 23
-              ),)
+              Text(
+                "首次使用 需要以管理员权限运行！",
+                style: TextStyle(color: Colors.red[200], fontSize: 23),
+              )
             ],
           ),
           const SizedBox(
@@ -216,6 +217,7 @@ class _MyHomePageState extends State<MyHomePage> {
                       logTextAdd("ID正确  开始下载...");
 
                       // 输入命令
+                      toDownItem();
                     }
                   },
                   decoration: const InputDecoration(
@@ -234,55 +236,7 @@ class _MyHomePageState extends State<MyHomePage> {
                   height: 50,
                   child: ElevatedButton.icon(
                       onPressed: () async {
-                        final prefs = await SharedPreferences.getInstance();
-
-                        var passWD = prefs.get("SteamPSWD");
-                        var name = prefs.get("SteamName");
-
-
-                        if (name != null && passWD != null) {
-                          RegExp exp = RegExp(r"id=\d+");
-                          var fileid = exp.stringMatch(urlController.text);
-
-                          if (fileid == null) {
-                            urlController.clear();
-                            logTextAdd("请输入正确的ID,连接包含id=xxxxxx");
-                          } else {
-                            fileid = fileid.substring(3);
-                            logTextAdd("ID正确  开始下载...");
-                            logTextAdd(
-                                "首次使用Steam 可能需要验证码验证，提示 Steam Guard code:  如果看见此提示 请查看邮箱验证码输入...");
-
-
-                            Future _downItem()async{
-                              // 输入命令
-                              // steamcmd +login 名字 密码 +force_install_dir Z:\ +workshop_download_item 431960 2798955847 +quit
-                              String run_dir = Directory.current.path;
-                              var script =
-                                  "$run_dir\\data\\flutter_assets\\assets\\steamcmd\\steamcmd.exe +login $name $passWD +workshop_download_item 431960 $fileid +quit";
-                              // var script ="./data/flutter_assets/assets/steamcmd/steamcmd.exe +force_install_dir "+"Z:\\"+" +login "+name.toString()+" "+passWD.toString()+" +workshop_download_item 431960 "+fileid+" +quit";
-                              var shell = Shell();
-                              await shell
-                                  .run("cmd /c start $script");
-                            }
-                            doLink(false).then((value) async {
-                              logTextAdd("开始下载 $fileid");
-_downItem()
-                                  .then((value) {
-                                urlController.clear();
-                                logTextAdd("已完成 $fileid 下载");
-// 准备做 自动打开 感觉没必要 就删了
-                              });
-                            });
-                          }
-                        } else {
-                          logTextAdd(
-                              "请先输入Steam账号密码，并且该账号已经购买了Wallpaper Engine");
-                          logTextAdd(
-                              "请先输入Steam账号密码，并且该账号已经购买了Wallpaper Engine");
-                          logTextAdd(
-                              "请先输入Steam账号密码，并且该账号已经购买了Wallpaper Engine");
-                        }
+                        toDownItem();
                       },
                       icon: const Icon(Icons.download),
                       label: const Text("下载壁纸"))),
@@ -343,11 +297,10 @@ Future doLink(bool relink) async {
   String run_dir = Directory.current.path;
 
   String dlDir = await getPreferences("wallpaper64.exe");
-  dlDir = dlDir.replaceAll("wallpaper64.exe", "");
-
+  dlDir = dlDir.replaceAll("\\wallpaper64.exe", "");
 
 // 这里有问题 不能判断到底是不是 文件夹 连接同样认定为文件夹
-  Future _delDir()async{
+  Future _delDir() async {
     var directory_431960 = Directory(
         "$run_dir\\data\\flutter_assets\\assets\\steamcmd\\steamapps\\workshop\\content\\431960");
     var exists = await directory_431960.exists();
@@ -359,33 +312,75 @@ Future doLink(bool relink) async {
   }
 
   Future _check_431960() async {
-
     var file_431960 = File(
         "$run_dir\\data\\flutter_assets\\assets\\steamcmd\\steamapps\\workshop\\content\\431960");
-    FileSystemEntityType type = FileSystemEntity.typeSync(file_431960.path,followLinks: false);
+    FileSystemEntityType type =
+        FileSystemEntity.typeSync(file_431960.path, followLinks: false);
 
     var exists = await file_431960.exists();
-    if (exists == false&&type.toString()!="link") {
+    if (exists == false && type.toString() != "link") {
+      logTextAdd("431960 连接不存在....");
       // 如果不存在就创建 连接
-      _delDir().then((value) => logTextAdd("431960 连接创建中...."));
-
-
+      _delDir().then((value) {
+        Link("$run_dir\\data\\flutter_assets\\assets\\steamcmd\\steamapps\\workshop\\content\\431960")
+            .create("$dlDir\\projects\\defaultprojects\\", recursive: true)
+            .then((value) => logTextAdd("连接已建立完毕...."));
+      });
     } else {
       // 如果需要重建
       if (relink) {
         // 存在 就删除后重新创建
         logTextAdd("431960连接重建中....");
         file_431960.delete();
-
       }
     }
   }
- 
 
-      _check_431960().then((value){
-        Link("$run_dir\\data\\flutter_assets\\assets\\steamcmd\\steamapps\\workshop\\content\\431960").create("$dlDir\\projects\\defaultprojects\\",recursive: true).then((value) =>logTextAdd("连接已建立完毕....") );
+  _check_431960(); // 检查连接
+}
 
-      } ); //建立连接
+Future toDownItem() async {
+  final prefs = await SharedPreferences.getInstance();
 
+  var passWD = prefs.get("SteamPSWD");
+  var name = prefs.get("SteamName");
 
+  if (name != null && passWD != null) {
+    RegExp exp = RegExp(r"id=\d+");
+    var fileid = exp.stringMatch(urlController.text);
+
+    if (fileid == null) {
+      urlController.clear();
+      logTextAdd("请输入正确的ID,连接包含id=xxxxxx");
+    } else {
+      fileid = fileid.substring(3);
+      logTextAdd("ID正确  开始下载...");
+      logTextAdd(
+          "首次使用Steam 可能需要验证码验证，提示 Steam Guard code:  如果看见此提示 请查看邮箱验证码输入...");
+
+      Future _downItem() async {
+        // 输入命令
+        // steamcmd +login 名字 密码 +force_install_dir Z:\ +workshop_download_item 431960 2798955847 +quit
+        String run_dir = Directory.current.path;
+        var script =
+            "$run_dir\\data\\flutter_assets\\assets\\steamcmd\\steamcmd.exe +login $name $passWD +workshop_download_item 431960 $fileid +quit";
+        // var script ="./data/flutter_assets/assets/steamcmd/steamcmd.exe +force_install_dir "+"Z:\\"+" +login "+name.toString()+" "+passWD.toString()+" +workshop_download_item 431960 "+fileid+" +quit";
+        var shell = Shell();
+        await shell.run("cmd /c start $script");
+      }
+
+      doLink(false).then((value) async {
+        logTextAdd("开始下载 $fileid");
+        _downItem().then((value) {
+          urlController.clear();
+          logTextAdd("已完成 $fileid 下载");
+// 准备做 自动打开 感觉没必要 就删了
+        });
+      });
+    }
+  } else {
+    logTextAdd("请先输入Steam账号密码，并且该账号已经购买了Wallpaper Engine");
+    logTextAdd("请先输入Steam账号密码，并且该账号已经购买了Wallpaper Engine");
+    logTextAdd("请先输入Steam账号密码，并且该账号已经购买了Wallpaper Engine");
+  }
 }
