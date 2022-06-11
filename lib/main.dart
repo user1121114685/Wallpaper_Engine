@@ -1,5 +1,5 @@
 import 'dart:io';
-
+import 'package:dio/dio.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:process_run/shell.dart';
@@ -17,7 +17,7 @@ Future main() async {
 //  上面两个必须是同一类型....
 // E:\Flutter_project\wallpaper_engine_workshop_downloader\windows\runner\main.cpp 改名字
 
-String VerSion = "V021";
+String VerSion = "V022";
 // List LogText = ["版本号:" + VerSion];
 /// 第一步 定义 ValueNotifier
 List<String> LogText = ["版本号:" + VerSion];
@@ -26,6 +26,9 @@ List<String> LogText = ["版本号:" + VerSion];
 ValueNotifier<String> LogsNotifier = ValueNotifier<String>("");
 
 String wallpaper64 = "";
+bool multidown = false;
+int i_down_num = 0;
+List<String> ids = [];
 
 class MyApp extends StatelessWidget {
   const MyApp({Key? key}) : super(key: key);
@@ -199,7 +202,7 @@ class _MyHomePageState extends State<MyHomePage> {
           Row(
             children: [
               SizedBox(
-                width: 550,
+                width: 500,
                 child: TextField(
                   autofocus: true,
                   controller: urlController,
@@ -217,13 +220,22 @@ class _MyHomePageState extends State<MyHomePage> {
                       logTextAdd("ID正确  开始下载...");
 
                       // 输入命令
-                      toDownItem();
+                      // 如果勾选了 整页下载就执行整页下载 否则就下载单个
+                      if (multidown) {
+                        multiDownFile();
+                      } else {
+                        RegExp exp = RegExp(r"id=\d+");
+                        var fileid = exp.stringMatch(urlController.text);
+
+                        toDownItem(fileid!);
+                      }
                     }
                   },
                   decoration: const InputDecoration(
                       labelText: "输入下载地址(包含id=xxxxxxxx)",
                       hintText:
                           " 例如 https://steamcommunity.com/sharedfiles/filedetails/?id=1289832516",
+                      hintStyle: TextStyle(fontSize: 15),
                       enabledBorder: OutlineInputBorder(
                         borderSide: BorderSide(width: 2, color: Colors.blue),
                       )),
@@ -236,10 +248,37 @@ class _MyHomePageState extends State<MyHomePage> {
                   height: 50,
                   child: ElevatedButton.icon(
                       onPressed: () async {
-                        toDownItem();
+                        // 如果勾选了 整页下载就执行整页下载 否则就下载单个
+                        if (multidown) {
+                          multiDownFile();
+                        } else {
+                          RegExp exp = RegExp(r"id=\d+");
+                          var fileid = exp.stringMatch(urlController.text);
+
+                          toDownItem(fileid!);
+                        }
                       },
                       icon: const Icon(Icons.download),
-                      label: const Text("下载壁纸"))),
+                      label: const Text("下载"))),
+              const SizedBox(
+                width: 20,
+              ),
+              const Text(
+                "整页",
+                style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
+              ),
+              SizedBox(
+                height: 50,
+                child: Checkbox(
+                    value: multidown,
+                    activeColor: Colors.red, //选中时的颜色
+                    onChanged: (value) {
+                      multidown = value!;
+                      setState(() {
+                        // _checkboxSelected=value;
+                      });
+                    }),
+              )
             ],
           ),
           const SizedBox(
@@ -324,7 +363,7 @@ Future doLink(bool relink) async {
       _delDir().then((value) {
         Link("$run_dir\\data\\flutter_assets\\assets\\steamcmd\\steamapps\\workshop\\content\\431960")
             .create("$dlDir\\projects\\defaultprojects\\", recursive: true)
-            .then((value) => logTextAdd("连接已建立完毕...."));
+            .then((value) => logTextAdd("431960 连接已建立完毕...."));
       });
     } else {
       // 如果需要重建
@@ -339,21 +378,19 @@ Future doLink(bool relink) async {
   _check_431960(); // 检查连接
 }
 
-Future toDownItem() async {
+Future toDownItem(String downfileid) async {
   final prefs = await SharedPreferences.getInstance();
 
   var passWD = prefs.get("SteamPSWD");
   var name = prefs.get("SteamName");
 
   if (name != null && passWD != null) {
-    RegExp exp = RegExp(r"id=\d+");
-    var fileid = exp.stringMatch(urlController.text);
-
-    if (fileid == null) {
+    // id=431960 长度为9 所以简化代码
+    if (downfileid == "" || downfileid.length <= 9) {
       urlController.clear();
       logTextAdd("请输入正确的ID,连接包含id=xxxxxx");
     } else {
-      fileid = fileid.substring(3);
+      downfileid = downfileid.substring(3);
       logTextAdd("ID正确  开始下载...");
       logTextAdd(
           "首次使用Steam 可能需要验证码验证，提示 Steam Guard code:  如果看见此提示 请查看邮箱验证码输入...");
@@ -363,17 +400,22 @@ Future toDownItem() async {
         // steamcmd +login 名字 密码 +force_install_dir Z:\ +workshop_download_item 431960 2798955847 +quit
         String run_dir = Directory.current.path;
         var script =
-            "$run_dir\\data\\flutter_assets\\assets\\steamcmd\\steamcmd.exe +login $name $passWD +workshop_download_item 431960 $fileid +quit";
+            "$run_dir\\data\\flutter_assets\\assets\\steamcmd\\steamcmd.exe +login $name $passWD +workshop_download_item 431960 $downfileid +quit";
         // var script ="./data/flutter_assets/assets/steamcmd/steamcmd.exe +force_install_dir "+"Z:\\"+" +login "+name.toString()+" "+passWD.toString()+" +workshop_download_item 431960 "+fileid+" +quit";
         var shell = Shell();
         await shell.run("cmd /c start $script");
       }
 
-      doLink(false).then((value) async {
-        logTextAdd("开始下载 $fileid");
+      doLink(false).then((value) {
+        logTextAdd("开始下载 $downfileid");
         _downItem().then((value) {
           urlController.clear();
-          logTextAdd("已完成 $fileid 下载");
+          logTextAdd("已完成 $downfileid 下载");
+          if (ids.isNotEmpty && i_down_num != ids.length - 1) {
+            i_down_num++;
+            toDownItem(ids[i_down_num]);
+          }
+
 // 准备做 自动打开 感觉没必要 就删了
         });
       });
@@ -383,4 +425,26 @@ Future toDownItem() async {
     logTextAdd("请先输入Steam账号密码，并且该账号已经购买了Wallpaper Engine");
     logTextAdd("请先输入Steam账号密码，并且该账号已经购买了Wallpaper Engine");
   }
+}
+
+Future multiDownFile() async {
+  Response response;
+  var dio = Dio();
+  response = await dio.get(urlController.text);
+  RegExp exp = RegExp(r"id=\d+");
+  var fileids = exp.allMatches(response.data.toString());
+
+  for (Match m in fileids) {
+    // 因为 allmatch 是 惰性匹配 所以每次只加载第一个就好了
+    // id=431960 长度为9 所以简化代码
+    if (m[0]!.length <= 9) {
+      continue;
+    }
+
+    String fileid = m[0]!;
+    ids.add(fileid);
+    print(fileid);
+  }
+
+  toDownItem(ids[i_down_num]);
 }

@@ -38,9 +38,9 @@ dependencies:
   file_picker: ^4.1.6
   shared_preferences: ^2.0.8
   process_run: ^0.12.3+2
+  dio: ^4.0.6
 
 
- 
 
 
 dev_dependencies:
