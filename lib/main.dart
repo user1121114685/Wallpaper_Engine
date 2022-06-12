@@ -17,7 +17,7 @@ Future main() async {
 //  上面两个必须是同一类型....
 // E:\Flutter_project\wallpaper_engine_workshop_downloader\windows\runner\main.cpp 改名字
 
-String VerSion = "V022";
+String VerSion = "V023";
 // List LogText = ["版本号:" + VerSion];
 /// 第一步 定义 ValueNotifier
 List<String> LogText = ["版本号:" + VerSion];
@@ -414,6 +414,9 @@ Future toDownItem(String downfileid) async {
           if (ids.isNotEmpty && i_down_num != ids.length - 1) {
             i_down_num++;
             toDownItem(ids[i_down_num]);
+          } else {
+            ids = [];
+            i_down_num = 0;
           }
 
 // 准备做 自动打开 感觉没必要 就删了
@@ -441,9 +444,8 @@ Future multiDownFile() async {
       continue;
     }
 
-    String fileid = m[0]!;
-    ids.add(fileid);
-    print(fileid);
+    ids.add(m[0]!);
+    print(m[0]!);
   }
 
   toDownItem(ids[i_down_num]);
