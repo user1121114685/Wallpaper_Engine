@@ -17,7 +17,7 @@ Future main() async {
 //  上面两个必须是同一类型....
 // E:\Flutter_project\wallpaper_engine_workshop_downloader\windows\runner\main.cpp 改名字
 
-String VerSion = "V024";
+String VerSion = "V025";
 // List LogText = ["版本号:" + VerSion];
 /// 第一步 定义 ValueNotifier
 List<String> LogText = ["版本号:" + VerSion];
@@ -27,8 +27,6 @@ ValueNotifier<String> LogsNotifier = ValueNotifier<String>("");
 
 String wallpaper64 = "";
 bool multidown = false;
-int i_down_num = 0;
-List<String> ids = [];
 
 class MyApp extends StatelessWidget {
   const MyApp({Key? key}) : super(key: key);
@@ -411,13 +409,6 @@ Future toDownItem(String downfileid) async {
         _downItem().then((value) {
           urlController.clear();
           logTextAdd("已完成 $downfileid 下载");
-          if (ids.isNotEmpty && i_down_num != ids.length - 1) {
-            i_down_num++;
-            toDownItem(ids[i_down_num]);
-          } else {
-            ids = [];
-            i_down_num = 0;
-          }
 
 // 准备做 自动打开 感觉没必要 就删了
         });
@@ -431,6 +422,7 @@ Future toDownItem(String downfileid) async {
 }
 
 Future multiDownFile() async {
+  List<String> ids = [];
   Response response;
   var dio = Dio();
   response = await dio.get(urlController.text);
@@ -447,7 +439,40 @@ Future multiDownFile() async {
     ids.add(m[0]!);
     print(m[0]!);
   }
-  if (i_down_num == 0) {
-    toDownItem(ids[i_down_num]);
-  }
+  runScriptDown(ids);
+}
+
+Future runScriptDown(List<String> ids) async {
+  final prefs = await SharedPreferences.getInstance();
+
+  var passWD = prefs.get("SteamPSWD");
+  var name = prefs.get("SteamName");
+  String run_dir = Directory.current.path;
+  // .\steamcmd.exe +runscript Z:\test.txt
+  // .\steamcmd.exe +login AA BB +runscript Z:\test.txt +quit
+  String path = "$run_dir/down_ids.txt";
+  File file = File(path);
+
+// 这个方法只有一行，不可行
+  // for (var id in ids) {
+  //   await file.writeAsString("workshop_download_item 431960 $id\n",
+  //       mode: FileMode.append);
+  // }
+  // https://stackoverflow.com/questions/63719374/how-to-wait-for-foreach-to-complete-with-asynchronous-callbacks
+  Future.forEach(ids, (element) {
+    element = element.toString().substring(3);
+    file.writeAsStringSync("workshop_download_item 431960 $element\n",
+        mode: FileMode.append);
+  });
+
+  var script =
+      "$run_dir\\data\\flutter_assets\\assets\\steamcmd\\steamcmd.exe +login $name $passWD +runscript $path +quit";
+  var shell = Shell();
+  logTextAdd("开始整页下载中。。。。。");
+  await shell
+      .run("cmd /c start $script")
+      .then((value) => logTextAdd("整页下载已完成....."));
+  // 删除文件
+  file.deleteSync();
+  urlController.clear();
 }
