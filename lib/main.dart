@@ -1,10 +1,13 @@
-import 'dart:io';
+﻿import 'dart:io';
+
+import 'package:chinese_font_library/chinese_font_library.dart';
 import 'package:dio/dio.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:process_run/shell.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:wallpaper_engine_workshop_downloader/utils.dart';
 
 Future main() async {
   // await Isolate.spawn((message) {getAPIforDLL();}, num);
@@ -38,17 +41,8 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       // title: "ceui",
       theme: ThemeData(
-        // This is the theme of your application.
-        //
-        // Try running your application with "flutter run". You'll see the
-        // application has a blue toolbar. Then, without quitting the app, try
-        // changing the primarySwatch below to Colors.green and then invoke
-        // "hot reload" (press "r" in the console where you ran "flutter run",
-        // or simply save your changes to "hot reload" in a Flutter IDE).
-        // Notice that the counter didn't reset back to zero; the application
-        // is not restarted.
-        primarySwatch: Colors.blue,
-      ),
+        colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
+      ).useSystemChineseFont(Brightness.light),
       home: const MyHomePage(),
     );
   }
@@ -72,34 +66,36 @@ class _MyHomePageState extends State<MyHomePage> {
   Widget build(BuildContext context) {
     _launchUrl("https://steamcommunity.com/app/431960/workshop/");
     return Scaffold(
-        body: Container(
-      padding: const EdgeInsets.all(15),
-      child: Column(
-        // mainAxisSize: MainAxisSize.min,
-        children: [
-          Row(
-            //菜单栏 主要存放菜单数据
-            children: [
-              FutureBuilder(
-                future: getPreferences("wallpaper64.exe"),
-                // initialData: InitialData,
-                builder: (BuildContext context, AsyncSnapshot snapshot) {
-                  // snapshot 接收 future 返回的值
-                  return TextButton.icon(
+      body: Container(
+        padding: const EdgeInsets.all(15),
+        child: Column(
+          // mainAxisSize: MainAxisSize.min,
+          children: [
+            Row(
+              //菜单栏 主要存放菜单数据
+              children: [
+                FutureBuilder(
+                  future: getPreferences("wallpaper64.exe"),
+                  // initialData: InitialData,
+                  builder: (BuildContext context, AsyncSnapshot snapshot) {
+                    // snapshot 接收 future 返回的值
+                    return TextButton.icon(
                       onPressed: () async {
-                        FilePickerResult? result =
-                            await FilePicker.platform.pickFiles(
-                          type: FileType.custom,
-                          allowedExtensions: ['exe'],
-                        );
+                        FilePickerResult? result = await FilePicker.platform
+                            .pickFiles(
+                              type: FileType.custom,
+                              allowedExtensions: ['exe'],
+                            );
                         // print(result!.files.single.name.toString());
                         if (result != null &&
                             result.files.single.name.toString() ==
                                 "wallpaper64.exe") {
                           // obtain shared preferences
                           final prefs = await SharedPreferences.getInstance();
-                          prefs.setString('wallpaper64.exe',
-                              result.files.single.path!.toString());
+                          prefs.setString(
+                            'wallpaper64.exe',
+                            result.files.single.path!.toString(),
+                          );
                           // 重新选择 壁纸路径之后重建软连接
                           doLink(true);
                           setState(() {});
@@ -107,80 +103,79 @@ class _MyHomePageState extends State<MyHomePage> {
                       },
                       icon: const Icon(Icons.favorite),
                       label: Text(
-                          // 如果字符串中包含了 壁纸路径 就显示已找到
-                          snapshot.data.toString().contains("wallpaper64.exe")
-                              ? "已选择wallpaper64.exe"
-                              : "未选择wallpaper64.exe")); //此处是三元运算。
-                },
-              ),
-              const SizedBox(
-                width: 20,
-              ),
-              ElevatedButton.icon(
+                        // 如果字符串中包含了 壁纸路径 就显示已找到
+                        snapshot.data.toString().contains("wallpaper64.exe")
+                            ? "已选择wallpaper64.exe"
+                            : "未选择wallpaper64.exe",
+                      ),
+                    ); //此处是三元运算。
+                  },
+                ),
+                const SizedBox(width: 20),
+                ElevatedButton.icon(
                   onPressed: () {
                     _launchUrl(
-                        "https://github.com/user1121114685/Wallpaper_Engine");
+                      "https://github.com/user1121114685/Wallpaper_Engine",
+                    );
                   },
                   icon: const Icon(Icons.open_in_new_rounded),
-                  label: const Text("开源地址")),
-              const SizedBox(
-                width: 20,
-              ),
-              // 因为需要建立软连接 所以需要管理员运行
-              Text(
-                "首次使用 需要以管理员权限运行！",
-                style: TextStyle(color: Colors.red[200], fontSize: 23),
-              )
-            ],
-          ),
-          const SizedBox(
-            height: 20,
-          ),
-          const Divider(
+                  label: const Text("开源地址"),
+                ),
+                const SizedBox(width: 20),
+                // 因为需要建立软连接 所以需要管理员运行
+                Text(
+                  "首次使用 需要以管理员权限运行！",
+                  style: TextStyle(color: Colors.red[200], fontSize: 23),
+                ),
+              ],
+            ),
+            const SizedBox(height: 20),
+            const Divider(
               // color: Colors.red,
-              ),
-          Row(
-            children: [
-              const Text("Steam账号："),
-              SizedBox(
-                width: 110,
-                height: 30,
-                child: TextField(
+            ),
+            Row(
+              children: [
+                const Text("Steam账号："),
+                SizedBox(
+                  width: 110,
+                  height: 30,
+                  child: TextField(
                     controller: _nameController,
                     textInputAction: TextInputAction.done,
                     decoration: const InputDecoration(
-                        enabledBorder: OutlineInputBorder(
-                      borderSide: BorderSide(width: 2, color: Colors.blue),
-                    ))),
-              ),
-              const Text("Steam密码："),
-              SizedBox(
-                width: 110,
-                height: 30,
-                child: TextField(
+                      enabledBorder: OutlineInputBorder(
+                        borderSide: BorderSide(width: 2, color: Colors.blue),
+                      ),
+                    ),
+                  ),
+                ),
+                const Text("Steam密码："),
+                SizedBox(
+                  width: 110,
+                  height: 30,
+                  child: TextField(
                     controller: _passwdController,
                     textInputAction: TextInputAction.done,
                     obscureText: true,
                     decoration: const InputDecoration(
-                        enabledBorder: OutlineInputBorder(
-                      borderSide: BorderSide(width: 2, color: Colors.blue),
-                    ))),
-              ),
-              const SizedBox(
-                width: 20,
-              ),
-              ElevatedButton(
+                      enabledBorder: OutlineInputBorder(
+                        borderSide: BorderSide(width: 2, color: Colors.blue),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 20),
+                ElevatedButton(
                   onPressed: () async {
                     // 将名字保存起来
                     final prefs = await SharedPreferences.getInstance();
                     prefs.setString('SteamPSWD', _passwdController.text);
                     prefs.setString('SteamName', _nameController.text);
                   },
-                  child: const Text("保存账号密码")),
-              const SizedBox(
-                width: 10,
-              ),
-              ElevatedButton(
+                  child: const Text("保存账号密码"),
+                ),
+                const SizedBox(width: 10),
+                ElevatedButton(
                   onPressed: () async {
                     // 将名字保存起来
                     final prefs = await SharedPreferences.getInstance();
@@ -188,64 +183,35 @@ class _MyHomePageState extends State<MyHomePage> {
                     prefs.remove("SteamPSWD");
                     prefs.remove("SteamName");
                   },
-                  child: const Text("清除已保存的账号密码")),
-            ],
-          ),
-          const SizedBox(
-            height: 20,
-          ),
-          const Divider(
-              // color: Colors.blue,
-              ),
-          Row(
-            children: [
-              SizedBox(
-                width: 500,
-                child: TextField(
-                  autofocus: true,
-                  controller: urlController,
-                  // 当textInputAction: TextInputAction.done, 输入结束时，启用 onEditingComplete函数
-                  textInputAction: TextInputAction.done,
-                  onEditingComplete: () {
-                    RegExp exp = RegExp(r"id=\d+");
-                    var fileid = exp.stringMatch(urlController.text);
-
-                    if (fileid == null) {
-                      urlController.clear();
-                      logTextAdd("请输入正确的ID,连接包含id=xxxxxx");
-                    } else {
-                      fileid = fileid.substring(3);
-                      logTextAdd("ID正确  开始下载...");
-
-                      // 输入命令
-                      // 如果勾选了 整页下载就执行整页下载 否则就下载单个
-                      if (multidown) {
-                        multiDownFile();
-                      } else {
-                        RegExp exp = RegExp(r"id=\d+");
-                        var fileid = exp.stringMatch(urlController.text);
-
-                        toDownItem(fileid!);
-                      }
-                    }
-                  },
-                  decoration: const InputDecoration(
-                      labelText: "输入下载地址(包含id=xxxxxxxx)",
-                      hintText:
-                          " 例如 https://steamcommunity.com/sharedfiles/filedetails/?id=1289832516",
-                      hintStyle: TextStyle(fontSize: 15),
-                      enabledBorder: OutlineInputBorder(
-                        borderSide: BorderSide(width: 2, color: Colors.blue),
-                      )),
+                  child: const Text("清除已保存的账号密码"),
                 ),
-              ),
-              const SizedBox(
-                width: 20,
-              ),
-              SizedBox(
-                  height: 50,
-                  child: ElevatedButton.icon(
-                      onPressed: () async {
+              ],
+            ),
+            const SizedBox(height: 20),
+            const Divider(
+              // color: Colors.blue,
+            ),
+            Row(
+              children: [
+                SizedBox(
+                  width: 500,
+                  child: TextField(
+                    autofocus: true,
+                    controller: urlController,
+                    // 当textInputAction: TextInputAction.done, 输入结束时，启用 onEditingComplete函数
+                    textInputAction: TextInputAction.done,
+                    onEditingComplete: () {
+                      RegExp exp = RegExp(r"id=\d+");
+                      var fileid = exp.stringMatch(urlController.text);
+
+                      if (fileid == null) {
+                        urlController.clear();
+                        logTextAdd("请输入正确的ID,连接包含id=xxxxxx");
+                      } else {
+                        fileid = fileid.substring(3);
+                        logTextAdd("ID正确  开始下载...");
+
+                        // 输入命令
                         // 如果勾选了 整页下载就执行整页下载 否则就下载单个
                         if (multidown) {
                           multiDownFile();
@@ -255,19 +221,46 @@ class _MyHomePageState extends State<MyHomePage> {
 
                           toDownItem(fileid!);
                         }
-                      },
-                      icon: const Icon(Icons.download),
-                      label: const Text("下载"))),
-              const SizedBox(
-                width: 20,
-              ),
-              const Text(
-                "整页",
-                style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
-              ),
-              SizedBox(
-                height: 50,
-                child: Checkbox(
+                      }
+                    },
+                    decoration: const InputDecoration(
+                      labelText: "输入下载地址(包含id=xxxxxxxx)",
+                      hintText:
+                          " 例如 https://steamcommunity.com/sharedfiles/filedetails/?id=1289832516",
+                      hintStyle: TextStyle(fontSize: 15),
+                      enabledBorder: OutlineInputBorder(
+                        borderSide: BorderSide(width: 2, color: Colors.blue),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 20),
+                SizedBox(
+                  height: 50,
+                  child: ElevatedButton.icon(
+                    onPressed: () async {
+                      // 如果勾选了 整页下载就执行整页下载 否则就下载单个
+                      if (multidown) {
+                        multiDownFile();
+                      } else {
+                        RegExp exp = RegExp(r"id=\d+");
+                        var fileid = exp.stringMatch(urlController.text);
+
+                        toDownItem(fileid!);
+                      }
+                    },
+                    icon: const Icon(Icons.download),
+                    label: const Text("下载"),
+                  ),
+                ),
+                const SizedBox(width: 20),
+                const Text(
+                  "整页",
+                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
+                ),
+                SizedBox(
+                  height: 50,
+                  child: Checkbox(
                     value: multidown,
                     activeColor: Colors.red, //选中时的颜色
                     onChanged: (value) {
@@ -275,14 +268,13 @@ class _MyHomePageState extends State<MyHomePage> {
                       setState(() {
                         // _checkboxSelected=value;
                       });
-                    }),
-              )
-            ],
-          ),
-          const SizedBox(
-            height: 20,
-          ),
-          ValueListenableBuilder(
+                    },
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 20),
+            ValueListenableBuilder(
               valueListenable: LogsNotifier,
               builder: (context, value, child) {
                 return Expanded(
@@ -293,17 +285,19 @@ class _MyHomePageState extends State<MyHomePage> {
                     },
                   ),
                 );
-              })
-        ],
+              },
+            ),
+          ],
+        ),
       ),
-    ));
+    );
   }
 }
 
 Future<String> getPreferences(String keyword) async {
   final prefs = await SharedPreferences.getInstance();
 
-// Try reading data from the counter key. If it doesn't exist, return 0.
+  // Try reading data from the counter key. If it doesn't exist, return 0.
   if (keyword == "wallpaper64.exe") {
     wallpaper64 = prefs.getString(keyword).toString();
   }
@@ -316,7 +310,7 @@ Future delayedSeconds(int second) async {
 
 Future logTextAdd(String log) async {
   //LIST的 修改iterable的内容 是不会改变iterable的对象的
-// 所以 Notifier 不能使用LIST
+  // 所以 Notifier 不能使用LIST
   LogText.insert(0, log);
   LogsNotifier.value = log;
 }
@@ -331,15 +325,16 @@ Future doLink(bool relink) async {
   //Link的参数为该链接的Path，create的参数为链接的目标文件夹
   // 获取应用目录
   // String run_dir = (await getApplicationDocumentsDirectory()).path;
-  String run_dir = Directory.current.path;
+  String run_dir = executableDirPath();
 
   String dlDir = await getPreferences("wallpaper64.exe");
   dlDir = dlDir.replaceAll("\\wallpaper64.exe", "");
 
-// 这里有问题 不能判断到底是不是 文件夹 连接同样认定为文件夹
+  // 这里有问题 不能判断到底是不是 文件夹 连接同样认定为文件夹
   Future _delDir() async {
     var directory_431960 = Directory(
-        "$run_dir\\data\\flutter_assets\\assets\\steamcmd\\steamapps\\workshop\\content\\431960");
+      "$run_dir\\data\\flutter_assets\\assets\\steamcmd\\steamapps\\workshop\\content\\431960",
+    );
     var exists = await directory_431960.exists();
     if (exists == true) {
       // 如果文件夹存在就删除
@@ -350,16 +345,21 @@ Future doLink(bool relink) async {
 
   Future _check_431960() async {
     var file_431960 = File(
-        "$run_dir\\data\\flutter_assets\\assets\\steamcmd\\steamapps\\workshop\\content\\431960");
-    FileSystemEntityType type =
-        FileSystemEntity.typeSync(file_431960.path, followLinks: false);
+      "$run_dir\\data\\flutter_assets\\assets\\steamcmd\\steamapps\\workshop\\content\\431960",
+    );
+    FileSystemEntityType type = FileSystemEntity.typeSync(
+      file_431960.path,
+      followLinks: false,
+    );
 
     var exists = await file_431960.exists();
     if (exists == false && type.toString() != "link") {
       logTextAdd("431960 连接不存在....");
       // 如果不存在就创建 连接
       _delDir().then((value) {
-        Link("$run_dir\\data\\flutter_assets\\assets\\steamcmd\\steamapps\\workshop\\content\\431960")
+        Link(
+              "$run_dir\\data\\flutter_assets\\assets\\steamcmd\\steamapps\\workshop\\content\\431960",
+            )
             .create("$dlDir\\projects\\defaultprojects\\", recursive: true)
             .then((value) => logTextAdd("431960 连接已建立完毕...."));
       });
@@ -391,14 +391,17 @@ Future toDownItem(String downfileid) async {
       downfileid = downfileid.substring(3);
       logTextAdd("ID正确  开始下载...");
       logTextAdd(
-          "首次使用Steam 可能需要验证码验证，提示 Steam Guard code:  如果看见此提示 请查看邮箱验证码输入...");
+        "首次使用Steam 可能需要验证码验证，提示 Steam Guard code:  如果看见此提示 请查看邮箱验证码输入...",
+      );
 
       Future _downItem() async {
+        // 获取当前可执行文件的路径
+        String executablePath = executableDirPath();
+        print('当前正在下载单个文件');
         // 输入命令
         // steamcmd +login 名字 密码 +force_install_dir Z:\ +workshop_download_item 431960 2798955847 +quit
-        String run_dir = Directory.current.path;
         var script =
-            "$run_dir\\data\\flutter_assets\\assets\\steamcmd\\steamcmd.exe +login $name $passWD +workshop_download_item 431960 $downfileid +quit";
+            "\"$executablePath\"\\data\\flutter_assets\\assets\\steamcmd\\steamcmd.exe +login $name $passWD +workshop_download_item 431960 $downfileid +quit";
         // var script ="./data/flutter_assets/assets/steamcmd/steamcmd.exe +force_install_dir "+"Z:\\"+" +login "+name.toString()+" "+passWD.toString()+" +workshop_download_item 431960 "+fileid+" +quit";
         var shell = Shell();
         await shell.run("cmd /c start $script");
@@ -410,7 +413,7 @@ Future toDownItem(String downfileid) async {
           urlController.clear();
           logTextAdd("已完成 $downfileid 下载");
 
-// 准备做 自动打开 感觉没必要 就删了
+          // 准备做 自动打开 感觉没必要 就删了
         });
       });
     }
@@ -443,6 +446,8 @@ Future multiDownFile() async {
 }
 
 Future runScriptDown(List<String> ids) async {
+  // 获取当前可执行文件的路径
+
   final prefs = await SharedPreferences.getInstance();
 
   var passWD = prefs.get("SteamPSWD");
@@ -453,7 +458,7 @@ Future runScriptDown(List<String> ids) async {
   String path = "$run_dir/down_ids.txt";
   File file = File(path);
 
-// 这个方法只有一行，不可行
+  // 这个方法只有一行，不可行
   // for (var id in ids) {
   //   await file.writeAsString("workshop_download_item 431960 $id\n",
   //       mode: FileMode.append);
@@ -461,12 +466,15 @@ Future runScriptDown(List<String> ids) async {
   // https://stackoverflow.com/questions/63719374/how-to-wait-for-foreach-to-complete-with-asynchronous-callbacks
   Future.forEach(ids, (element) {
     element = element.toString().substring(3);
-    file.writeAsStringSync("workshop_download_item 431960 $element\n",
-        mode: FileMode.append);
+    file.writeAsStringSync(
+      "workshop_download_item 431960 $element\n",
+      mode: FileMode.append,
+    );
   });
-
+  String executablePath = executableDirPath();
+  print('当前正在下载整页文件');
   var script =
-      "$run_dir\\data\\flutter_assets\\assets\\steamcmd\\steamcmd.exe +login $name $passWD +runscript $path +quit";
+      "\"$executablePath\"\\data\\flutter_assets\\assets\\steamcmd\\steamcmd.exe +login $name $passWD +runscript $path +quit";
   var shell = Shell();
   logTextAdd("开始整页下载中。。。。。");
   await shell

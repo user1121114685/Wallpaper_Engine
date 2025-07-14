@@ -51,3 +51,5 @@ app.*.map.json
 /old/projects/
 /old/*.tmp
 wallpaper_engine_workshop_downloader.zip
+/windows/.vs/
+/windows/out/
