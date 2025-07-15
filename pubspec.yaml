@@ -16,7 +16,7 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 # https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html
 # In Windows, build-name is used as the major, minor, and patch parts
 # of the product and file versions while build-number is used as the build suffix.
-version: 1.2.6+1260
+version: 0.2.6+260
 
 environment:
   sdk: ^3.8.1
@@ -40,9 +40,14 @@ dependencies:
   process_run: ^1.2.4
   dio: ^5.8.0+1
   chinese_font_library: ^1.2.0
+  flutter_launcher_icons: ^0.14.4
+  tdesign_flutter: ^0.2.3
+  package_info_plus: ^8.3.0
 
 
-
+dependency_overrides:
+  tdesign_flutter_adaptation: 3.32.0
+  image_picker: 1.1.2
 
 dev_dependencies:
   flutter_test:
@@ -66,6 +71,8 @@ flutter:
   # the material Icons class.
   uses-material-design: true
 
+  assets:
+    - assets/steamcmd/steamcmd.exe
   # To add assets to your application, add an assets section, like this:
   # assets:
   #   - images/a_dot_burr.jpeg
@@ -96,3 +103,10 @@ flutter:
   #
   # For details regarding fonts from package dependencies,
   # see https://flutter.dev/to/font-from-package
+
+  # 生成图标 dart run flutter_launcher_icons
+flutter_launcher_icons:
+  image_path: "assets/wallpaper_engine.png"
+  windows:
+    generate: true
+    icon_size: 256 # min:48, max:256, default: 48

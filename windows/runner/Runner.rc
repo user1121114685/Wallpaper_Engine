@@ -89,11 +89,11 @@ BEGIN
     BEGIN
         BLOCK "040904e4"
         BEGIN
-            VALUE "CompanyName", "com.example" "\0"
-            VALUE "FileDescription", "wallpaper_engine_workshop_downloader" "\0"
+            VALUE "CompanyName", "shaoxia.xyz" "\0"
+            VALUE "FileDescription", "Wallpaper Engine Downloader." "\0"
             VALUE "FileVersion", VERSION_AS_STRING "\0"
             VALUE "InternalName", "wallpaper_engine_workshop_downloader" "\0"
-            VALUE "LegalCopyright", "Copyright (C) 2025 com.example. All rights reserved." "\0"
+            VALUE "LegalCopyright", "Copyright (C) 2021 shaoxia.xyz. All rights reserved." "\0"
             VALUE "OriginalFilename", "wallpaper_engine_workshop_downloader.exe" "\0"
             VALUE "ProductName", "wallpaper_engine_workshop_downloader" "\0"
             VALUE "ProductVersion", VERSION_AS_STRING "\0"

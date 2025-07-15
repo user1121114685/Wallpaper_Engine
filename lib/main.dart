@@ -3,45 +3,48 @@
 import 'package:chinese_font_library/chinese_font_library.dart';
 import 'package:dio/dio.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:process_run/shell.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:tdesign_flutter/tdesign_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:wallpaper_engine_workshop_downloader/utils.dart';
 
 Future main() async {
-  // await Isolate.spawn((message) {getAPIforDLL();}, num);
   runApp(const MyApp());
 }
 
-// steamcmd +login anonymous +force_install_dir c:\steamcmd\csgoserver +app_update 740 validate +quit
-// steamcmd +login AA BB +workshop_download_item 221100 1605653648 +quit
-
-//  上面两个必须是同一类型....
-// E:\Flutter_project\wallpaper_engine_workshop_downloader\windows\runner\main.cpp 改名字
-
-String VerSion = "V025";
-// List LogText = ["版本号:" + VerSion];
-/// 第一步 定义 ValueNotifier
-List<String> LogText = ["版本号:" + VerSion];
-
-/// 第一步 定义 ValueNotifier
-ValueNotifier<String> LogsNotifier = ValueNotifier<String>("");
+List<String> logText = [];
+ValueNotifier<String> logsNotifier = ValueNotifier<String>("");
 
 String wallpaper64 = "";
 bool multidown = false;
 
-class MyApp extends StatelessWidget {
-  const MyApp({Key? key}) : super(key: key);
+class MyApp extends StatefulWidget {
+  const MyApp({super.key});
 
-  // This widget is the root of your application.
+  @override
+  State<MyApp> createState() => _MyAppState();
+}
+
+class _MyAppState extends State<MyApp> {
+  late TDThemeData _themeData;
+
+  @override
+  void initState() {
+    super.initState();
+    _themeData = TDThemeData.defaultData();
+  }
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      // title: "ceui",
+      title: 'Wallpaper Engine 下载器',
       theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
+        extensions: [_themeData],
+        colorScheme: ColorScheme.light(primary: _themeData.brandNormalColor),
       ).useSystemChineseFont(Brightness.light),
       home: const MyHomePage(),
     );
@@ -49,255 +52,465 @@ class MyApp extends StatelessWidget {
 }
 
 class MyHomePage extends StatefulWidget {
-  const MyHomePage({Key? key}) : super(key: key);
+  const MyHomePage({super.key});
 
   @override
   _MyHomePageState createState() => _MyHomePageState();
 }
 
-//定义一个controller
 TextEditingController urlController = TextEditingController();
 
 class _MyHomePageState extends State<MyHomePage> {
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _passwdController = TextEditingController();
+  bool _isPasswordVisible = false;
+  String? appVersion;
+
+  Future<void> _loadAppVersion() async {
+    final PackageInfo packageInfo = await PackageInfo.fromPlatform();
+    setState(() {
+      appVersion = packageInfo.version;
+    });
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _loadAppVersion();
+    _launchUrl("https://steamcommunity.com/app/431960/workshop/");
+    _loadSavedCredentials();
+  }
+
+  Future<void> _loadSavedCredentials() async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      _nameController.text = prefs.getString('SteamName') ?? '';
+      _passwdController.text = prefs.getString('SteamPSWD') ?? '';
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
-    _launchUrl("https://steamcommunity.com/app/431960/workshop/");
     return Scaffold(
+      backgroundColor: TDTheme.of(context).grayColor1,
       body: Container(
-        padding: const EdgeInsets.all(15),
-        child: Column(
-          // mainAxisSize: MainAxisSize.min,
+        padding: const EdgeInsets.all(24),
+        child: Row(
           children: [
-            Row(
-              //菜单栏 主要存放菜单数据
+            Flexible(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildCredentialsSection(context),
+                  SizedBox(height: 24),
+
+                  // 下载区域
+                  _buildDownloadSection(),
+                  SizedBox(height: 24),
+                  _buildSoftwareInformation(appVersion),
+                ],
+              ),
+            ),
+            SizedBox(width: 24),
+            // 日志区域
+            Flexible(child: _buildLogSection()),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFileSelectionSection(BuildContext tDContext) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Icon(TDIcons.folder, color: TDTheme.of(context).brandColor7),
+            SizedBox(width: 8),
+            Text(
+              '壁纸路径设置',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+                color: TDTheme.of(context).fontGyColor1,
+              ),
+            ),
+          ],
+        ),
+        SizedBox(height: 16),
+        FutureBuilder(
+          future: getPreferences("wallpaper64.exe"),
+          builder: (BuildContext context, AsyncSnapshot snapshot) {
+            bool hasPath = snapshot.data.toString().contains("wallpaper64.exe");
+            return Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                FutureBuilder(
-                  future: getPreferences("wallpaper64.exe"),
-                  // initialData: InitialData,
-                  builder: (BuildContext context, AsyncSnapshot snapshot) {
-                    // snapshot 接收 future 返回的值
-                    return TextButton.icon(
-                      onPressed: () async {
-                        FilePickerResult? result = await FilePicker.platform
-                            .pickFiles(
-                              type: FileType.custom,
-                              allowedExtensions: ['exe'],
-                            );
-                        // print(result!.files.single.name.toString());
-                        if (result != null &&
-                            result.files.single.name.toString() ==
-                                "wallpaper64.exe") {
-                          // obtain shared preferences
-                          final prefs = await SharedPreferences.getInstance();
-                          prefs.setString(
-                            'wallpaper64.exe',
-                            result.files.single.path!.toString(),
-                          );
-                          // 重新选择 壁纸路径之后重建软连接
-                          doLink(true);
-                          setState(() {});
-                        }
-                      },
-                      icon: const Icon(Icons.favorite),
-                      label: Text(
-                        // 如果字符串中包含了 壁纸路径 就显示已找到
-                        snapshot.data.toString().contains("wallpaper64.exe")
-                            ? "已选择wallpaper64.exe"
-                            : "未选择wallpaper64.exe",
-                      ),
-                    ); //此处是三元运算。
+                TDTag(
+                  hasPath ? "已选择 wallpaper64.exe" : "未选择 wallpaper64.exe",
+                  theme: hasPath ? TDTagTheme.success : TDTagTheme.warning,
+                  // variant: TDTagVariant.light,
+                  icon: hasPath ? TDIcons.check_circle : TDIcons.close_circle,
+                ),
+                SizedBox(width: 16),
+                TDButton(
+                  text: '选择文件',
+                  theme: TDButtonTheme.primary,
+                  type: TDButtonType.outline,
+                  icon: TDIcons.browse,
+                  onTap: () async {
+                    FilePickerResult? result = await FilePicker.platform
+                        .pickFiles(
+                          type: FileType.custom,
+                          allowedExtensions: ['exe'],
+                        );
+                    if (result != null &&
+                        result.files.single.name.toString() ==
+                            "wallpaper64.exe") {
+                      final prefs = await SharedPreferences.getInstance();
+                      prefs.setString(
+                        'wallpaper64.exe',
+                        result.files.single.path!.toString(),
+                      );
+                      doLink(true);
+                      setState(() {});
+                      TDToast.showSuccess('文件选择成功!', context: tDContext);
+                    }
                   },
                 ),
-                const SizedBox(width: 20),
-                ElevatedButton.icon(
-                  onPressed: () {
-                    _launchUrl(
-                      "https://github.com/user1121114685/Wallpaper_Engine",
-                    );
-                  },
-                  icon: const Icon(Icons.open_in_new_rounded),
-                  label: const Text("开源地址"),
-                ),
-                const SizedBox(width: 20),
-                // 因为需要建立软连接 所以需要管理员运行
+              ],
+            );
+          },
+        ),
+      ],
+    );
+  }
+
+  Widget _buildCredentialsSection(BuildContext tDContext) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _buildFileSelectionSection(tDContext),
+            Row(
+              children: [
+                Icon(TDIcons.user, color: TDTheme.of(context).brandColor7),
+                SizedBox(width: 8),
                 Text(
-                  "首次使用 需要以管理员权限运行！",
-                  style: TextStyle(color: Colors.red[200], fontSize: 23),
+                  'Steam 账号设置',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: TDTheme.of(context).fontGyColor1,
+                  ),
                 ),
               ],
             ),
-            const SizedBox(height: 20),
-            const Divider(
-              // color: Colors.red,
-            ),
+            SizedBox(height: 16),
             Row(
               children: [
-                const Text("Steam账号："),
-                SizedBox(
-                  width: 110,
-                  height: 30,
-                  child: TextField(
+                Flexible(
+                  child: TDInput(
+                    leftLabel: '账号',
                     controller: _nameController,
-                    textInputAction: TextInputAction.done,
-                    decoration: const InputDecoration(
-                      enabledBorder: OutlineInputBorder(
-                        borderSide: BorderSide(width: 2, color: Colors.blue),
-                      ),
-                    ),
+                    hintText: '请输入Steam账号',
+                    type: TDInputType.normal,
                   ),
                 ),
-                const Text("Steam密码："),
-                SizedBox(
-                  width: 110,
-                  height: 30,
-                  child: TextField(
+                SizedBox(width: 16),
+                Flexible(
+                  child: TDInput(
+                    leftLabel: '密码',
                     controller: _passwdController,
-                    textInputAction: TextInputAction.done,
-                    obscureText: true,
-                    decoration: const InputDecoration(
-                      enabledBorder: OutlineInputBorder(
-                        borderSide: BorderSide(width: 2, color: Colors.blue),
-                      ),
+                    hintText: '请输入Steam密码',
+                    type: TDInputType.normal,
+                    obscureText: !_isPasswordVisible,
+                    rightBtn: TDButton(
+                      icon: _isPasswordVisible
+                          ? TDIcons.browse_off
+                          : TDIcons.browse,
+                      onTap: () {
+                        setState(() {
+                          _isPasswordVisible = !_isPasswordVisible;
+                        });
+                      },
                     ),
                   ),
                 ),
-                const SizedBox(width: 20),
-                ElevatedButton(
-                  onPressed: () async {
-                    // 将名字保存起来
+              ],
+            ),
+            SizedBox(height: 16),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                TDButton(
+                  text: '保存账号密码',
+                  theme: TDButtonTheme.primary,
+                  type: TDButtonType.fill,
+                  icon: TDIcons.save,
+                  onTap: () async {
                     final prefs = await SharedPreferences.getInstance();
                     prefs.setString('SteamPSWD', _passwdController.text);
                     prefs.setString('SteamName', _nameController.text);
+                    TDToast.showSuccess('保存成功!', context: tDContext);
                   },
-                  child: const Text("保存账号密码"),
                 ),
-                const SizedBox(width: 10),
-                ElevatedButton(
-                  onPressed: () async {
-                    // 将名字保存起来
+                SizedBox(width: 16),
+                TDButton(
+                  text: '清除账号密码',
+                  theme: TDButtonTheme.danger,
+                  type: TDButtonType.outline,
+                  icon: TDIcons.clear,
+                  onTap: () async {
                     final prefs = await SharedPreferences.getInstance();
-
                     prefs.remove("SteamPSWD");
                     prefs.remove("SteamName");
+                    setState(() {
+                      _nameController.clear();
+                      _passwdController.clear();
+                    });
+                    TDToast.showSuccess('已清除!', context: tDContext);
                   },
-                  child: const Text("清除已保存的账号密码"),
                 ),
               ],
-            ),
-            const SizedBox(height: 20),
-            const Divider(
-              // color: Colors.blue,
-            ),
-            Row(
-              children: [
-                SizedBox(
-                  width: 500,
-                  child: TextField(
-                    autofocus: true,
-                    controller: urlController,
-                    // 当textInputAction: TextInputAction.done, 输入结束时，启用 onEditingComplete函数
-                    textInputAction: TextInputAction.done,
-                    onEditingComplete: () {
-                      RegExp exp = RegExp(r"id=\d+");
-                      var fileid = exp.stringMatch(urlController.text);
-
-                      if (fileid == null) {
-                        urlController.clear();
-                        logTextAdd("请输入正确的ID,连接包含id=xxxxxx");
-                      } else {
-                        fileid = fileid.substring(3);
-                        logTextAdd("ID正确  开始下载...");
-
-                        // 输入命令
-                        // 如果勾选了 整页下载就执行整页下载 否则就下载单个
-                        if (multidown) {
-                          multiDownFile();
-                        } else {
-                          RegExp exp = RegExp(r"id=\d+");
-                          var fileid = exp.stringMatch(urlController.text);
-
-                          toDownItem(fileid!);
-                        }
-                      }
-                    },
-                    decoration: const InputDecoration(
-                      labelText: "输入下载地址(包含id=xxxxxxxx)",
-                      hintText:
-                          " 例如 https://steamcommunity.com/sharedfiles/filedetails/?id=1289832516",
-                      hintStyle: TextStyle(fontSize: 15),
-                      enabledBorder: OutlineInputBorder(
-                        borderSide: BorderSide(width: 2, color: Colors.blue),
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 20),
-                SizedBox(
-                  height: 50,
-                  child: ElevatedButton.icon(
-                    onPressed: () async {
-                      // 如果勾选了 整页下载就执行整页下载 否则就下载单个
-                      if (multidown) {
-                        multiDownFile();
-                      } else {
-                        RegExp exp = RegExp(r"id=\d+");
-                        var fileid = exp.stringMatch(urlController.text);
-
-                        toDownItem(fileid!);
-                      }
-                    },
-                    icon: const Icon(Icons.download),
-                    label: const Text("下载"),
-                  ),
-                ),
-                const SizedBox(width: 20),
-                const Text(
-                  "整页",
-                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
-                ),
-                SizedBox(
-                  height: 50,
-                  child: Checkbox(
-                    value: multidown,
-                    activeColor: Colors.red, //选中时的颜色
-                    onChanged: (value) {
-                      multidown = value!;
-                      setState(() {
-                        // _checkboxSelected=value;
-                      });
-                    },
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 20),
-            ValueListenableBuilder(
-              valueListenable: LogsNotifier,
-              builder: (context, value, child) {
-                return Expanded(
-                  child: ListView.builder(
-                    itemCount: LogText.length,
-                    itemBuilder: (BuildContext context, int index) {
-                      return Text(LogText[index]); // 算了 加个P时间 毫无意义
-                    },
-                  ),
-                );
-              },
             ),
           ],
         ),
       ),
     );
   }
+
+  // 修改后的 _buildSoftwareInformation 方法
+  Widget _buildSoftwareInformation(String? appVersion) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            TDButton(
+              text: '开源地址',
+              theme: TDButtonTheme.light,
+              type: TDButtonType.text,
+              icon: TDIcons.link,
+              onTap: () {
+                _launchUrl(
+                  "https://github.com/user1121114685/Wallpaper_Engine",
+                );
+              },
+            ),
+            Text(
+              appVersion != null ? '软件版本: $appVersion' : '软件版本: 加载中...',
+              style: TextStyle(fontSize: 15, color: Colors.grey[600]),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDownloadSection() {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(TDIcons.download, color: TDTheme.of(context).brandColor7),
+                SizedBox(width: 8),
+                Text(
+                  '下载壁纸',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: TDTheme.of(context).fontGyColor1,
+                  ),
+                ),
+              ],
+            ),
+            SizedBox(height: 16),
+            Row(
+              children: [
+                Flexible(
+                  child: TDInput(
+                    controller: urlController,
+                    hintText:
+                        '例如: https://steamcommunity.com/sharedfiles/filedetails/?id=1289832516',
+                    type: TDInputType.normal,
+                    leftIcon: Icon(TDIcons.link),
+                    maxLines: 1,
+                    onEditingComplete: () {
+                      _handleDownload();
+                    },
+                  ),
+                ),
+                SizedBox(width: 16),
+                TDButton(
+                  text: '下载',
+                  theme: TDButtonTheme.primary,
+                  type: TDButtonType.fill,
+                  icon: TDIcons.download,
+                  size: TDButtonSize.large,
+                  onTap: _handleDownload,
+                ),
+              ],
+            ),
+            SizedBox(height: 16),
+            Row(
+              children: [
+                Text(
+                  '整页下载',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                    color: TDTheme.of(context).fontGyColor1,
+                  ),
+                ),
+                SizedBox(width: 8),
+                TDSwitch(
+                  isOn: multidown,
+                  onChanged: (value) {
+                    setState(() {
+                      multidown = value;
+                    });
+                    return true;
+                  },
+                ),
+                SizedBox(width: 24),
+                TDTag(
+                  multidown ? '整页模式' : '单个模式',
+                  theme: multidown
+                      ? TDTagTheme.primary
+                      : TDTagTheme.defaultTheme,
+                  // variant: TDTagVariant.light,
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildLogSection() {
+    return Flexible(
+      child: Card(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(20),
+              child: Row(
+                children: [
+                  Icon(TDIcons.chat, color: TDTheme.of(context).brandColor7),
+                  SizedBox(width: 8),
+                  Text(
+                    '运行日志',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      color: TDTheme.of(context).fontGyColor1,
+                    ),
+                  ),
+                  Spacer(),
+                  TDButton(
+                    text: '清空日志',
+                    theme: TDButtonTheme.light,
+                    type: TDButtonType.text,
+                    icon: TDIcons.clear,
+                    onTap: () {
+                      setState(() {
+                        logText.clear();
+                        logsNotifier.value = "";
+                      });
+                    },
+                  ),
+                ],
+              ),
+            ),
+            Divider(height: 1, color: TDTheme.of(context).grayColor3),
+            Flexible(
+              child: Container(
+                padding: const EdgeInsets.all(20),
+                child: ValueListenableBuilder(
+                  valueListenable: logsNotifier,
+                  builder: (context, value, child) {
+                    return ListView.separated(
+                      itemCount: logText.length,
+                      separatorBuilder: (context, index) => SizedBox(height: 8),
+                      itemBuilder: (BuildContext context, int index) {
+                        return Container(
+                          padding: EdgeInsets.symmetric(
+                            vertical: 4,
+                            horizontal: 8,
+                          ),
+                          decoration: BoxDecoration(
+                            color: index == 0
+                                ? TDTheme.of(context).brandColor1
+                                : TDTheme.of(context).grayColor2,
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: Text(
+                            logText[index],
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: index == 0
+                                  ? TDTheme.of(context).brandColor7
+                                  : TDTheme.of(context).fontGyColor2,
+                              fontFamily: 'Consolas',
+                            ),
+                          ),
+                        );
+                      },
+                    );
+                  },
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _handleDownload() {
+    RegExp exp = RegExp(r"id=\d+");
+    var fileid = exp.stringMatch(urlController.text);
+
+    if (fileid == null) {
+      urlController.clear();
+      logTextAdd("请输入正确的ID,连接包含id=xxxxxx");
+      TDToast.showFail('连接有误！', context: context);
+    } else {
+      fileid = fileid.substring(3);
+      logTextAdd("ID正确  开始下载...");
+
+      if (multidown) {
+        multiDownFile();
+      } else {
+        RegExp exp = RegExp(r"id=\d+");
+        var fileid = exp.stringMatch(urlController.text);
+        toDownItem(fileid!);
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    urlController.dispose();
+    _nameController.dispose();
+    _passwdController.dispose();
+    super.dispose();
+  }
 }
 
+// 保持原有的工具函数不变
 Future<String> getPreferences(String keyword) async {
   final prefs = await SharedPreferences.getInstance();
-
-  // Try reading data from the counter key. If it doesn't exist, return 0.
   if (keyword == "wallpaper64.exe") {
     wallpaper64 = prefs.getString(keyword).toString();
   }
@@ -309,117 +522,110 @@ Future delayedSeconds(int second) async {
 }
 
 Future logTextAdd(String log) async {
-  //LIST的 修改iterable的内容 是不会改变iterable的对象的
-  // 所以 Notifier 不能使用LIST
-  LogText.insert(0, log);
-  LogsNotifier.value = log;
+  logText.insert(0, log);
+  logsNotifier.value = log;
 }
 
-void _launchUrl(String url_string) async {
-  var url = Uri.parse(url_string);
+void _launchUrl(String urlString) async {
+  var url = Uri.parse(urlString);
   if (!await launchUrl(url)) throw 'Could not launch $url';
 }
 
 Future doLink(bool relink) async {
-  //创建链接 https://www.daimajiaoliu.com/daima/479885188100403
-  //Link的参数为该链接的Path，create的参数为链接的目标文件夹
-  // 获取应用目录
-  // String run_dir = (await getApplicationDocumentsDirectory()).path;
-  String run_dir = executableDirPath();
-
+  String runDir = executableDirPath();
   String dlDir = await getPreferences("wallpaper64.exe");
   dlDir = dlDir.replaceAll("\\wallpaper64.exe", "");
-
-  // 这里有问题 不能判断到底是不是 文件夹 连接同样认定为文件夹
-  Future _delDir() async {
-    var directory_431960 = Directory(
-      "$run_dir\\data\\flutter_assets\\assets\\steamcmd\\steamapps\\workshop\\content\\431960",
-    );
-    var exists = await directory_431960.exists();
-    if (exists == true) {
-      // 如果文件夹存在就删除
-      logTextAdd("431960文件夹删除中....");
-      directory_431960.delete(recursive: true);
+  String path_431960 =
+      "$runDir\\data\\flutter_assets\\assets\\steamcmd\\steamapps\\workshop\\content\\431960";
+  Future del_431960() async {
+    try {
+      var directory_431960 = Directory(path_431960);
+      if (directory_431960.existsSync()) {
+        logTextAdd("431960文件夹删除中....");
+        directory_431960.delete(recursive: true);
+      }
+      var file_431960 = File(path_431960);
+      if (file_431960.existsSync()) {
+        logTextAdd("431960文件删除中....");
+        file_431960.delete();
+      }
+    } catch (e) {
+      logTextAdd("431960文件夹删除失败 $e");
     }
   }
 
-  Future _check_431960() async {
-    var file_431960 = File(
-      "$run_dir\\data\\flutter_assets\\assets\\steamcmd\\steamapps\\workshop\\content\\431960",
-    );
+  Future check_431960() async {
+    var file_431960 = File(path_431960);
     FileSystemEntityType type = FileSystemEntity.typeSync(
       file_431960.path,
       followLinks: false,
     );
 
-    var exists = await file_431960.exists();
-    if (exists == false && type.toString() != "link") {
+    //
+    //    FileSystemEntityType.file,
+    //     FileSystemEntityType.directory,
+    //     FileSystemEntityType.link,
+    //     FileSystemEntityType.unixDomainSock,
+    //     FileSystemEntityType.pipe,
+    //     FileSystemEntityType.notFound,
+    if (type != FileSystemEntityType.link) {
       logTextAdd("431960 连接不存在....");
-      // 如果不存在就创建 连接
-      _delDir().then((value) {
-        Link(
-              "$run_dir\\data\\flutter_assets\\assets\\steamcmd\\steamapps\\workshop\\content\\431960",
-            )
+      del_431960().then((value) {
+        Link(path_431960)
             .create("$dlDir\\projects\\defaultprojects\\", recursive: true)
             .then((value) => logTextAdd("431960 连接已建立完毕...."));
       });
     } else {
-      // 如果需要重建
       if (relink) {
-        // 存在 就删除后重新创建
         logTextAdd("431960连接重建中....");
-        file_431960.delete();
+        del_431960().then((value) {
+          Link(path_431960)
+              .create("$dlDir\\projects\\defaultprojects\\", recursive: true)
+              .then((value) => logTextAdd("431960 连接已建立完毕...."));
+        });
       }
     }
   }
 
-  _check_431960(); // 检查连接
+  try {
+    check_431960();
+  } catch (e) {
+    logTextAdd("431960文件夹建立失败 $e");
+  }
 }
 
 Future toDownItem(String downfileid) async {
   final prefs = await SharedPreferences.getInstance();
-
   var passWD = prefs.get("SteamPSWD");
   var name = prefs.get("SteamName");
 
   if (name != null && passWD != null) {
-    // id=431960 长度为9 所以简化代码
     if (downfileid == "" || downfileid.length <= 9) {
       urlController.clear();
       logTextAdd("请输入正确的ID,连接包含id=xxxxxx");
     } else {
       downfileid = downfileid.substring(3);
       logTextAdd("ID正确  开始下载...");
-      logTextAdd(
-        "首次使用Steam 可能需要验证码验证，提示 Steam Guard code:  如果看见此提示 请查看邮箱验证码输入...",
-      );
+      logTextAdd("提示 Steam Guard code:  查找邮件输入验证码，后将继续下载...");
 
-      Future _downItem() async {
-        // 获取当前可执行文件的路径
+      Future downItem() async {
         String executablePath = executableDirPath();
-        print('当前正在下载单个文件');
-        // 输入命令
-        // steamcmd +login 名字 密码 +force_install_dir Z:\ +workshop_download_item 431960 2798955847 +quit
+
         var script =
             "\"$executablePath\"\\data\\flutter_assets\\assets\\steamcmd\\steamcmd.exe +login $name $passWD +workshop_download_item 431960 $downfileid +quit";
-        // var script ="./data/flutter_assets/assets/steamcmd/steamcmd.exe +force_install_dir "+"Z:\\"+" +login "+name.toString()+" "+passWD.toString()+" +workshop_download_item 431960 "+fileid+" +quit";
         var shell = Shell();
         await shell.run("cmd /c start $script");
       }
 
       doLink(false).then((value) {
         logTextAdd("开始下载 $downfileid");
-        _downItem().then((value) {
+        downItem().then((value) {
           urlController.clear();
           logTextAdd("已完成 $downfileid 下载");
-
-          // 准备做 自动打开 感觉没必要 就删了
         });
       });
     }
   } else {
-    logTextAdd("请先输入Steam账号密码，并且该账号已经购买了Wallpaper Engine");
-    logTextAdd("请先输入Steam账号密码，并且该账号已经购买了Wallpaper Engine");
     logTextAdd("请先输入Steam账号密码，并且该账号已经购买了Wallpaper Engine");
   }
 }
@@ -433,37 +639,28 @@ Future multiDownFile() async {
   var fileids = exp.allMatches(response.data.toString());
 
   for (Match m in fileids) {
-    // 因为 allmatch 是 惰性匹配 所以每次只加载第一个就好了
-    // id=431960 长度为9 所以简化代码
     if (m[0]!.length <= 9) {
       continue;
     }
-
     ids.add(m[0]!);
-    print(m[0]!);
+    if (kDebugMode) {
+      print(m[0]!);
+    }
   }
-  runScriptDown(ids);
+
+  doLink(false).then((v) {
+    runScriptDown(ids);
+  });
 }
 
 Future runScriptDown(List<String> ids) async {
-  // 获取当前可执行文件的路径
-
   final prefs = await SharedPreferences.getInstance();
-
   var passWD = prefs.get("SteamPSWD");
   var name = prefs.get("SteamName");
-  String run_dir = Directory.current.path;
-  // .\steamcmd.exe +runscript Z:\test.txt
-  // .\steamcmd.exe +login AA BB +runscript Z:\test.txt +quit
-  String path = "$run_dir/down_ids.txt";
+  String runDir = Directory.current.path;
+  String path = "$runDir/down_ids.txt";
   File file = File(path);
 
-  // 这个方法只有一行，不可行
-  // for (var id in ids) {
-  //   await file.writeAsString("workshop_download_item 431960 $id\n",
-  //       mode: FileMode.append);
-  // }
-  // https://stackoverflow.com/questions/63719374/how-to-wait-for-foreach-to-complete-with-asynchronous-callbacks
   Future.forEach(ids, (element) {
     element = element.toString().substring(3);
     file.writeAsStringSync(
@@ -471,16 +668,19 @@ Future runScriptDown(List<String> ids) async {
       mode: FileMode.append,
     );
   });
+
   String executablePath = executableDirPath();
-  print('当前正在下载整页文件');
+  if (kDebugMode) {
+    print('当前正在下载整页文件');
+  }
   var script =
       "\"$executablePath\"\\data\\flutter_assets\\assets\\steamcmd\\steamcmd.exe +login $name $passWD +runscript $path +quit";
   var shell = Shell();
   logTextAdd("开始整页下载中。。。。。");
+  logTextAdd("提示 Steam Guard code:  查找邮件输入验证码，后将继续下载...");
   await shell
       .run("cmd /c start $script")
       .then((value) => logTextAdd("整页下载已完成....."));
-  // 删除文件
   file.deleteSync();
   urlController.clear();
 }
