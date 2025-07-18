@@ -28,6 +28,8 @@ Future logTextAdd(String log) async {
 }
 
 Future logTextAddList(List<String> log) async {
+  logText.insertAll(0, log.reversed);
+  logsNotifier.value = log.join();
   if (log.contains("Steam Guard code:")) {
     showGeneralDialog(
       context: Get.context!,
@@ -45,8 +47,6 @@ Future logTextAddList(List<String> log) async {
           },
     );
   }
-  logText.insertAll(0, log.reversed);
-  logsNotifier.value = log.join();
 }
 
 // 保持原有的工具函数不变
@@ -121,8 +121,9 @@ Future doLink(bool relink) async {
   }
 }
 
+List<String> _logLines = [];
+
 class LogWatcher {
-  final List<String> _logLines = [];
   final File _logFile;
   Timer? _timer;
   int _lastFileSize = 0;
@@ -159,7 +160,6 @@ class LogWatcher {
         // 读取新内容
         final newLines = await _readNewLogContent(_logFile);
         if (newLines.isNotEmpty) {
-          _logLines.addAll(newLines);
           logTextAddList(_logLines);
         }
       }
@@ -183,9 +183,9 @@ class LogWatcher {
   }
 
   Future<List<String>> _readNewLogContent(File file) async {
-    final previousLength = _logLines.length;
     final content = await file.readAsLines();
-    return content.sublist(previousLength);
+    _logLines = content;
+    return content.sublist(_logLines.length);
   }
 
   void stopWatching() {
