@@ -53,3 +53,4 @@ app.*.map.json
 wallpaper_engine_workshop_downloader.zip
 /windows/.vs/
 /windows/out/
+/Output

@@ -10,7 +10,7 @@ steamCMD [命令详情](https://github.com/dgibbs64/SteamCMD-Commands-List/blob/
 
 ## 使用方法
 
-[下载地址 点我下载](https://github.com/user1121114685/Wallpaper_Engine/releases/latest/download/Wallpaper_Engine_壁纸下载器安装程序.exe)    
+[下载地址 点我下载](https://github.com/user1121114685/Wallpaper_Engine/releases/latest/download/Wallpaper_Engine.exe)    
 
 **首先**：你需要以**管理员权限运行程序**（只是第一次运行或者初始化）！   
 ![目录](https://github.com/user1121114685/Wallpaper_Engine/blob/main/QQ%E6%88%AA%E5%9B%BE20201212152332.png?raw=true)     
