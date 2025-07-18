@@ -5,6 +5,7 @@ import 'package:dio/dio.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:get/get.dart' hide Response;
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:process_run/shell.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -16,10 +17,6 @@ Future main() async {
   runApp(const MyApp());
 }
 
-List<String> logText = [];
-ValueNotifier<String> logsNotifier = ValueNotifier<String>("");
-
-String wallpaper64 = "";
 bool multidown = false;
 
 class MyApp extends StatefulWidget {
@@ -40,7 +37,7 @@ class _MyAppState extends State<MyApp> {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
+    return GetMaterialApp(
       title: 'Wallpaper Engine 下载器',
       theme: ThemeData(
         extensions: [_themeData],
@@ -57,8 +54,6 @@ class MyHomePage extends StatefulWidget {
   @override
   _MyHomePageState createState() => _MyHomePageState();
 }
-
-TextEditingController urlController = TextEditingController();
 
 class _MyHomePageState extends State<MyHomePage> {
   final TextEditingController _nameController = TextEditingController();
@@ -79,6 +74,16 @@ class _MyHomePageState extends State<MyHomePage> {
     _loadAppVersion();
     _launchUrl("https://steamcommunity.com/app/431960/workshop/");
     _loadSavedCredentials();
+    _initLogSystem();
+  }
+
+  void _initLogSystem() async {
+    String path = executableDirPath();
+    String logFile =
+        "$path\\data\\flutter_assets\\assets\\steamcmd\\logs\\console_log.txt";
+    File file = File(logFile);
+
+    LogWatcher(file).startWatching();
   }
 
   Future<void> _loadSavedCredentials() async {
@@ -495,6 +500,7 @@ class _MyHomePageState extends State<MyHomePage> {
         RegExp exp = RegExp(r"id=\d+");
         var fileid = exp.stringMatch(urlController.text);
         toDownItem(fileid!);
+        // toDownItemProcessStart(fileid!);
       }
     }
   }
@@ -508,90 +514,13 @@ class _MyHomePageState extends State<MyHomePage> {
   }
 }
 
-// 保持原有的工具函数不变
-Future<String> getPreferences(String keyword) async {
-  final prefs = await SharedPreferences.getInstance();
-  if (keyword == "wallpaper64.exe") {
-    wallpaper64 = prefs.getString(keyword).toString();
-  }
-  return prefs.getString(keyword).toString();
-}
-
 Future delayedSeconds(int second) async {
   await Future.delayed(Duration(seconds: second));
-}
-
-Future logTextAdd(String log) async {
-  logText.insert(0, log);
-  logsNotifier.value = log;
 }
 
 void _launchUrl(String urlString) async {
   var url = Uri.parse(urlString);
   if (!await launchUrl(url)) throw 'Could not launch $url';
-}
-
-Future doLink(bool relink) async {
-  String runDir = executableDirPath();
-  String dlDir = await getPreferences("wallpaper64.exe");
-  dlDir = dlDir.replaceAll("\\wallpaper64.exe", "");
-  String path_431960 =
-      "$runDir\\data\\flutter_assets\\assets\\steamcmd\\steamapps\\workshop\\content\\431960";
-  Future del_431960() async {
-    try {
-      var directory_431960 = Directory(path_431960);
-      if (directory_431960.existsSync()) {
-        logTextAdd("431960文件夹删除中....");
-        directory_431960.delete(recursive: true);
-      }
-      var file_431960 = File(path_431960);
-      if (file_431960.existsSync()) {
-        logTextAdd("431960文件删除中....");
-        file_431960.delete();
-      }
-    } catch (e) {
-      logTextAdd("431960文件夹删除失败 $e");
-    }
-  }
-
-  Future check_431960() async {
-    var file_431960 = File(path_431960);
-    FileSystemEntityType type = FileSystemEntity.typeSync(
-      file_431960.path,
-      followLinks: false,
-    );
-
-    //
-    //    FileSystemEntityType.file,
-    //     FileSystemEntityType.directory,
-    //     FileSystemEntityType.link,
-    //     FileSystemEntityType.unixDomainSock,
-    //     FileSystemEntityType.pipe,
-    //     FileSystemEntityType.notFound,
-    if (type != FileSystemEntityType.link) {
-      logTextAdd("431960 连接不存在....");
-      del_431960().then((value) {
-        Link(path_431960)
-            .create("$dlDir\\projects\\defaultprojects\\", recursive: true)
-            .then((value) => logTextAdd("431960 连接已建立完毕...."));
-      });
-    } else {
-      if (relink) {
-        logTextAdd("431960连接重建中....");
-        del_431960().then((value) {
-          Link(path_431960)
-              .create("$dlDir\\projects\\defaultprojects\\", recursive: true)
-              .then((value) => logTextAdd("431960 连接已建立完毕...."));
-        });
-      }
-    }
-  }
-
-  try {
-    check_431960();
-  } catch (e) {
-    logTextAdd("431960文件夹建立失败 $e");
-  }
 }
 
 Future toDownItem(String downfileid) async {
@@ -606,13 +535,11 @@ Future toDownItem(String downfileid) async {
     } else {
       downfileid = downfileid.substring(3);
       logTextAdd("ID正确  开始下载...");
-      logTextAdd("提示 Steam Guard code:  查找邮件输入验证码，后将继续下载...");
-
       Future downItem() async {
         String executablePath = executableDirPath();
 
         var script =
-            "\"$executablePath\"\\data\\flutter_assets\\assets\\steamcmd\\steamcmd.exe +login $name $passWD +workshop_download_item 431960 $downfileid +quit";
+            "$executablePath\\data\\flutter_assets\\assets\\steamcmd\\steamcmd.exe +login $name $passWD +workshop_download_item 431960 $downfileid +quit";
         var shell = Shell();
         await shell.run("cmd /c start $script");
       }
@@ -674,10 +601,8 @@ Future runScriptDown(List<String> ids) async {
     print('当前正在下载整页文件');
   }
   var script =
-      "\"$executablePath\"\\data\\flutter_assets\\assets\\steamcmd\\steamcmd.exe +login $name $passWD +runscript $path +quit";
+      "$executablePath\\data\\flutter_assets\\assets\\steamcmd\\steamcmd.exe +login $name $passWD +runscript $path +quit";
   var shell = Shell();
-  logTextAdd("开始整页下载中。。。。。");
-  logTextAdd("提示 Steam Guard code:  查找邮件输入验证码，后将继续下载...");
   await shell
       .run("cmd /c start $script")
       .then((value) => logTextAdd("整页下载已完成....."));
