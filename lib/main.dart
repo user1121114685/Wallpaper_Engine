@@ -2,7 +2,7 @@
 
 import 'package:chinese_font_library/chinese_font_library.dart';
 import 'package:dio/dio.dart';
-import 'package:file_picker/file_picker.dart';
+import 'package:filepicker_windows/filepicker_windows.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart' hide Response;
@@ -164,19 +164,16 @@ class _MyHomePageState extends State<MyHomePage> {
                   type: TDButtonType.outline,
                   icon: TDIcons.browse,
                   onTap: () async {
-                    FilePickerResult? result = await FilePicker.platform
-                        .pickFiles(
-                          type: FileType.custom,
-                          allowedExtensions: ['exe'],
-                        );
-                    if (result != null &&
-                        result.files.single.name.toString() ==
-                            "wallpaper64.exe") {
+                    final file = OpenFilePicker()
+                      ..filterSpecification = {
+                        'Wallpaper Engine': 'wallpaper64.exe',
+                      }
+                      ..defaultFilterIndex = 0
+                      ..title = '选择Wallpaper Engine 启动文件';
+                    File? result = file.getFile();
+                    if (result != null) {
                       final prefs = await SharedPreferences.getInstance();
-                      prefs.setString(
-                        'wallpaper64.exe',
-                        result.files.single.path!.toString(),
-                      );
+                      prefs.setString('wallpaper64.exe', result.path);
                       doLink(true);
                       setState(() {});
                       TDToast.showSuccess('文件选择成功!', context: tDContext);
@@ -402,82 +399,80 @@ class _MyHomePageState extends State<MyHomePage> {
   }
 
   Widget _buildLogSection() {
-    return Flexible(
-      child: Card(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Padding(
-              padding: const EdgeInsets.all(20),
-              child: Row(
-                children: [
-                  Icon(TDIcons.chat, color: TDTheme.of(context).brandColor7),
-                  SizedBox(width: 8),
-                  Text(
-                    '运行日志',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                      color: TDTheme.of(context).fontGyColor1,
-                    ),
+    return Card(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(20),
+            child: Row(
+              children: [
+                Icon(TDIcons.chat, color: TDTheme.of(context).brandColor7),
+                SizedBox(width: 8),
+                Text(
+                  '运行日志',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: TDTheme.of(context).fontGyColor1,
                   ),
-                  Spacer(),
-                  TDButton(
-                    text: '清空日志',
-                    theme: TDButtonTheme.light,
-                    type: TDButtonType.text,
-                    icon: TDIcons.clear,
-                    onTap: () {
-                      setState(() {
-                        logText.clear();
-                        logsNotifier.value = "";
-                      });
-                    },
-                  ),
-                ],
-              ),
-            ),
-            Divider(height: 1, color: TDTheme.of(context).grayColor3),
-            Flexible(
-              child: Container(
-                padding: const EdgeInsets.all(20),
-                child: ValueListenableBuilder(
-                  valueListenable: logsNotifier,
-                  builder: (context, value, child) {
-                    return ListView.separated(
-                      itemCount: logText.length,
-                      separatorBuilder: (context, index) => SizedBox(height: 8),
-                      itemBuilder: (BuildContext context, int index) {
-                        return Container(
-                          padding: EdgeInsets.symmetric(
-                            vertical: 4,
-                            horizontal: 8,
-                          ),
-                          decoration: BoxDecoration(
-                            color: index == 0
-                                ? TDTheme.of(context).brandColor1
-                                : TDTheme.of(context).grayColor2,
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                          child: Text(
-                            logText[index],
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: index == 0
-                                  ? TDTheme.of(context).brandColor7
-                                  : TDTheme.of(context).fontGyColor2,
-                              fontFamily: 'Consolas',
-                            ),
-                          ),
-                        );
-                      },
-                    );
+                ),
+                Spacer(),
+                TDButton(
+                  text: '清空日志',
+                  theme: TDButtonTheme.light,
+                  type: TDButtonType.text,
+                  icon: TDIcons.clear,
+                  onTap: () {
+                    setState(() {
+                      logText.clear();
+                      logsNotifier.value = "";
+                    });
                   },
                 ),
+              ],
+            ),
+          ),
+          Divider(height: 1, color: TDTheme.of(context).grayColor3),
+          Flexible(
+            child: Container(
+              padding: const EdgeInsets.all(20),
+              child: ValueListenableBuilder(
+                valueListenable: logsNotifier,
+                builder: (context, value, child) {
+                  return ListView.separated(
+                    itemCount: logText.length,
+                    separatorBuilder: (context, index) => SizedBox(height: 8),
+                    itemBuilder: (BuildContext context, int index) {
+                      return Container(
+                        padding: EdgeInsets.symmetric(
+                          vertical: 4,
+                          horizontal: 8,
+                        ),
+                        decoration: BoxDecoration(
+                          color: index == 0
+                              ? TDTheme.of(context).brandColor1
+                              : TDTheme.of(context).grayColor2,
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(
+                          logText[index],
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: index == 0
+                                ? TDTheme.of(context).brandColor7
+                                : TDTheme.of(context).fontGyColor2,
+                            fontFamily: 'Consolas',
+                          ),
+                        ),
+                      );
+                    },
+                  );
+                },
               ),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -512,10 +507,6 @@ class _MyHomePageState extends State<MyHomePage> {
     _passwdController.dispose();
     super.dispose();
   }
-}
-
-Future delayedSeconds(int second) async {
-  await Future.delayed(Duration(seconds: second));
 }
 
 void _launchUrl(String urlString) async {
