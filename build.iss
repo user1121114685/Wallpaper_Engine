@@ -2,7 +2,7 @@
 ; 有关创建 Inno Setup 脚本文件的详细信息请查阅帮助文档
 
 #define MyAppName "Wallpaper Engine 壁纸下载器"
-#define MyAppVersion "0.2.9"
+#define MyAppVersion "0.3.0"
 #define MyAppPublisher "联盟少侠"
 #define MyIconFileName ".\windows\runner\resources\app_icon.ico"
 

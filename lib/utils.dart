@@ -128,7 +128,9 @@ class LogWatcher {
   Timer? _timer;
   int _lastFileSize = 0;
   DateTime? _lastModified;
-  int _logLines = 0;
+  int _logLines = 0; // 跟踪已处理的行数
+  bool _checking = false;
+
   LogWatcher(this._logFile);
 
   void startWatching() async {
@@ -137,7 +139,11 @@ class LogWatcher {
 
     // 使用定时器每500毫秒检查一次文件变化
     _timer = Timer.periodic(Duration(milliseconds: 500), (timer) async {
-      await _checkFileChanges();
+      if (!_checking) {
+        _checking = true;
+        await _checkFileChanges();
+        _checking = false;
+      }
     });
   }
 
@@ -151,18 +157,20 @@ class LogWatcher {
       final currentSize = stat.size;
       final currentModified = stat.modified;
 
-      // 检查文件大小或修改时间是否有变化
+      // 检查文件是否有变化
       if (currentSize != _lastFileSize ||
-          (_lastModified != null && currentModified != _lastModified)) {
+          (_lastModified != null && currentModified.isAfter(_lastModified!))) {
+        // 读取新内容
+        final newLines = await _readNewLogContent();
+        if (newLines.isNotEmpty) {
+          // 先更新已处理行数，再添加新行
+          _logLines += newLines.length;
+          await logTextAddList(newLines);
+        }
+
+        // 更新文件状态跟踪
         _lastFileSize = currentSize;
         _lastModified = currentModified;
-
-        // 读取新内容
-        final newLines = await _readNewLogContent(_logFile);
-        if (newLines.isNotEmpty) {
-          _logLines = newLines.length;
-          logTextAddList(newLines);
-        }
       }
     } catch (e) {
       print('检查文件变化时出错: $e');
@@ -176,9 +184,8 @@ class LogWatcher {
     try {
       // 清空文件内容
       await _logFile.writeAsString('');
-      // 同时清空内存中的日志行
+      // 重置所有状态
       _logLines = 0;
-      // 重置文件状态跟踪
       _lastFileSize = 0;
       _lastModified = null;
     } catch (e) {
@@ -186,12 +193,31 @@ class LogWatcher {
     }
   }
 
-  Future<List<String>> _readNewLogContent(File file) async {
-    final content = await file.readAsLines();
-    return content.sublist(_logLines);
+  Future<List<String>> _readNewLogContent() async {
+    try {
+      final content = await _logFile.readAsLines();
+      final totalLines = content.length;
+
+      // 如果当前文件行数小于已处理行数，说明文件被清空或重写了
+      if (totalLines < _logLines) {
+        _logLines = 0;
+        return [];
+      }
+
+      // 返回新增的行
+      if (totalLines > _logLines) {
+        return content.sublist(_logLines);
+      }
+
+      return [];
+    } catch (e) {
+      print('读取日志内容时出错: $e');
+      return [];
+    }
   }
 
   void stopWatching() {
     _timer?.cancel();
+    _timer = null;
   }
 }

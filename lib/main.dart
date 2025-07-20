@@ -14,7 +14,17 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:wallpaper_engine_workshop_downloader/utils.dart';
 
 Future main() async {
+  _initLogSystem();
   runApp(const MyApp());
+}
+
+void _initLogSystem() async {
+  String path = executableDirPath();
+  String logFile =
+      "$path\\data\\flutter_assets\\assets\\steamcmd\\logs\\console_log.txt";
+  File file = File(logFile);
+
+  LogWatcher(file).startWatching();
 }
 
 bool multidown = false;
@@ -74,16 +84,6 @@ class _MyHomePageState extends State<MyHomePage> {
     _loadAppVersion();
     _launchUrl("https://steamcommunity.com/app/431960/workshop/");
     _loadSavedCredentials();
-    _initLogSystem();
-  }
-
-  void _initLogSystem() async {
-    String path = executableDirPath();
-    String logFile =
-        "$path\\data\\flutter_assets\\assets\\steamcmd\\logs\\console_log.txt";
-    File file = File(logFile);
-
-    LogWatcher(file).startWatching();
   }
 
   Future<void> _loadSavedCredentials() async {
@@ -106,7 +106,7 @@ class _MyHomePageState extends State<MyHomePage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _buildCredentialsSection(context),
+                  _buildCredentialsSection(),
                   SizedBox(height: 24),
 
                   // 下载区域
@@ -125,7 +125,7 @@ class _MyHomePageState extends State<MyHomePage> {
     );
   }
 
-  Widget _buildFileSelectionSection(BuildContext tDContext) {
+  Widget _buildFileSelectionSection() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -176,7 +176,7 @@ class _MyHomePageState extends State<MyHomePage> {
                       prefs.setString('wallpaper64.exe', result.path);
                       doLink(true);
                       setState(() {});
-                      TDToast.showSuccess('文件选择成功!', context: tDContext);
+                      TDToast.showSuccess('文件选择成功!', context: Get.context!);
                     }
                   },
                 ),
@@ -188,14 +188,14 @@ class _MyHomePageState extends State<MyHomePage> {
     );
   }
 
-  Widget _buildCredentialsSection(BuildContext tDContext) {
+  Widget _buildCredentialsSection() {
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(20),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _buildFileSelectionSection(tDContext),
+            _buildFileSelectionSection(),
             Row(
               children: [
                 Icon(TDIcons.user, color: TDTheme.of(context).brandColor7),
@@ -256,7 +256,7 @@ class _MyHomePageState extends State<MyHomePage> {
                     final prefs = await SharedPreferences.getInstance();
                     prefs.setString('SteamPSWD', _passwdController.text);
                     prefs.setString('SteamName', _nameController.text);
-                    TDToast.showSuccess('保存成功!', context: tDContext);
+                    TDToast.showSuccess('保存成功!', context: Get.context!);
                   },
                 ),
                 SizedBox(width: 16),
@@ -273,7 +273,7 @@ class _MyHomePageState extends State<MyHomePage> {
                       _nameController.clear();
                       _passwdController.clear();
                     });
-                    TDToast.showSuccess('已清除!', context: tDContext);
+                    TDToast.showSuccess('已清除!', context: Get.context!);
                   },
                 ),
               ],
@@ -550,9 +550,9 @@ Future multiDownFile() async {
   var dio = Dio();
   response = await dio.get(urlController.text);
   RegExp exp = RegExp(r"id=\d+");
-  var fileids = exp.allMatches(response.data.toString());
+  var fileIds = exp.allMatches(response.data.toString());
 
-  for (Match m in fileids) {
+  for (Match m in fileIds) {
     if (m[0]!.length <= 9) {
       continue;
     }
