@@ -27,10 +27,12 @@ Future logTextAdd(String log) async {
   logsNotifier.value = log;
 }
 
+bool _showSteamGuardCode = false;
 Future logTextAddList(List<String> log) async {
   logText.insertAll(0, log.reversed);
   logsNotifier.value = log.join();
-  if (log.contains("Steam Guard code:")) {
+  if (log.contains("Steam Guard code:") && !_showSteamGuardCode) {
+    _showSteamGuardCode = true;
     showGeneralDialog(
       context: Get.context!,
       pageBuilder:
