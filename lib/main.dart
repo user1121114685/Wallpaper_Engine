@@ -486,15 +486,11 @@ class _MyHomePageState extends State<MyHomePage> {
       logTextAdd("请输入正确的ID,连接包含id=xxxxxx");
       TDToast.showFail('连接有误！', context: context);
     } else {
-      fileid = fileid.substring(3);
-      logTextAdd("ID正确  开始下载...");
-
       if (multidown) {
         multiDownFile();
       } else {
-        RegExp exp = RegExp(r"id=\d+");
-        var fileid = exp.stringMatch(urlController.text);
-        toDownItem(fileid!);
+        logTextAdd("ID正确  开始下载...");
+        toDownItem(fileid);
         // toDownItemProcessStart(fileid!);
       }
     }
@@ -576,9 +572,10 @@ Future runScriptDown(List<String> ids) async {
   var passWD = prefs.get("SteamPSWD");
   var name = prefs.get("SteamName");
   String runDir = Directory.current.path;
-  String path = "$runDir/down_ids.txt";
+  // 这样可以多次点击下载不会被覆盖掉原来的ids
+  String path = "$runDir/down_ids_${DateTime.timestamp().millisecond}.txt";
   File file = File(path);
-
+  logTextAdd("开始 整页下载 ${ids.first} 开头的多个壁纸.....");
   Future.forEach(ids, (element) {
     element = element.toString().substring(3);
     file.writeAsStringSync(
@@ -596,7 +593,7 @@ Future runScriptDown(List<String> ids) async {
   var shell = Shell();
   await shell
       .run("cmd /c start $script")
-      .then((value) => logTextAdd("整页下载已完成....."));
+      .then((value) => logTextAdd("已完成 整页下载 ${ids.first} 开头的多个壁纸....."));
   file.deleteSync();
   urlController.clear();
 }

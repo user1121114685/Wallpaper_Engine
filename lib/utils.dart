@@ -121,14 +121,12 @@ Future doLink(bool relink) async {
   }
 }
 
-List<String> _logLines = [];
-
 class LogWatcher {
   final File _logFile;
   Timer? _timer;
   int _lastFileSize = 0;
   DateTime? _lastModified;
-
+  int _logLines = 0;
   LogWatcher(this._logFile);
 
   void startWatching() async {
@@ -160,7 +158,8 @@ class LogWatcher {
         // 读取新内容
         final newLines = await _readNewLogContent(_logFile);
         if (newLines.isNotEmpty) {
-          logTextAddList(_logLines);
+          _logLines = newLines.length;
+          logTextAddList(newLines);
         }
       }
     } catch (e) {
@@ -169,11 +168,14 @@ class LogWatcher {
   }
 
   Future<void> _clearLogFile() async {
+    if (!await _logFile.exists()) {
+      return;
+    }
     try {
       // 清空文件内容
       await _logFile.writeAsString('');
       // 同时清空内存中的日志行
-      _logLines.clear();
+      _logLines = 0;
       // 重置文件状态跟踪
       _lastFileSize = 0;
       _lastModified = null;
@@ -184,8 +186,7 @@ class LogWatcher {
 
   Future<List<String>> _readNewLogContent(File file) async {
     final content = await file.readAsLines();
-    _logLines = content;
-    return content.sublist(_logLines.length);
+    return content.sublist(_logLines);
   }
 
   void stopWatching() {
