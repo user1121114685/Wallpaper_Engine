@@ -1,30 +1,58 @@
-// This is a basic Flutter widget test.
-//
-// To perform an interaction with a widget in your test, use the WidgetTester
-// utility that Flutter provides. For example, you can send tap and scroll
-// gestures. You can also use WidgetTester to find child widgets in the widget
-// tree, read text, and verify that the values of widget properties are correct.
-
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-
-import 'package:wallpaper_engine_workshop_downloader/main.dart';
+import 'package:wallpaper_engine_workshop_downloader/steam_guard_input.dart';
 
 void main() {
-  testWidgets('Counter increments smoke test', (WidgetTester tester) async {
-    // Build our app and trigger a frame.
-    await tester.pumpWidget(const MyApp());
+  testWidgets('Steam Guard codes reach the active SteamCMD session', (
+    WidgetTester tester,
+  ) async {
+    final submitted = <String>[];
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SteamGuardInput(
+            enabled: true,
+            stopEnabled: true,
+            onSend: (code) async => submitted.add(code),
+            onStop: () {},
+          ),
+        ),
+      ),
+    );
 
-    // Verify that our counter starts at 0.
-    expect(find.text('0'), findsOneWidget);
-    expect(find.text('1'), findsNothing);
+    await tester.enterText(find.byKey(const Key('steam-guard-code')), 'AB12C');
+    await tester.tap(find.byKey(const Key('send-steam-guard-code')));
+    await tester.pumpAndSettle();
 
-    // Tap the '+' icon and trigger a frame.
-    await tester.tap(find.byIcon(Icons.add));
-    await tester.pump();
+    expect(submitted, ['AB12C']);
+    expect(
+      tester.widget<TextField>(find.byType(TextField)).controller!.text,
+      '',
+    );
+  });
 
-    // Verify that our counter has incremented.
-    expect(find.text('0'), findsNothing);
-    expect(find.text('1'), findsOneWidget);
+  testWidgets('the code field stays disabled outside an active session', (
+    WidgetTester tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SteamGuardInput(
+            enabled: false,
+            stopEnabled: false,
+            onSend: (code) async {},
+            onStop: () {},
+          ),
+        ),
+      ),
+    );
+
+    expect(tester.widget<TextField>(find.byType(TextField)).enabled, false);
+    expect(
+      tester
+          .widget<IconButton>(find.byKey(const Key('send-steam-guard-code')))
+          .onPressed,
+      isNull,
+    );
   });
 }

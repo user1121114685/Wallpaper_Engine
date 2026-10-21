@@ -54,3 +54,11 @@ wallpaper_engine_workshop_downloader.zip
 /windows/.vs/
 /windows/out/
 /Output
+/assets/steamcmd/*
+!/assets/steamcmd/steamcmd.exe
+/hook/*.dll
+/hook/*.obj
+/hook/*.lib
+/hook/*.exp
+/hook/*.exe
+/steamcmd_hook.dll

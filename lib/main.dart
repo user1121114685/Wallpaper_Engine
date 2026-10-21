@@ -1,16 +1,15 @@
-﻿import 'dart:io';
+import 'dart:io';
 
 import 'package:chinese_font_library/chinese_font_library.dart';
 import 'package:dio/dio.dart';
 import 'package:filepicker_windows/filepicker_windows.dart';
-import 'package:flutter/foundation.dart';
-import 'package:flutter/material.dart';
 import 'package:get/get.dart' hide Response;
 import 'package:package_info_plus/package_info_plus.dart';
-import 'package:process_run/shell.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:tdesign_flutter/tdesign_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:wallpaper_engine_workshop_downloader/steam_guard_input.dart';
+import 'package:wallpaper_engine_workshop_downloader/steamcmd_ffi.dart';
 import 'package:wallpaper_engine_workshop_downloader/utils.dart';
 
 Future main() async {
@@ -28,6 +27,9 @@ void _initLogSystem() async {
 }
 
 bool multidown = false;
+final ValueNotifier<bool> _steamCmdRunning = ValueNotifier(false);
+final ValueNotifier<bool> _steamCmdInputReady = ValueNotifier(false);
+SteamCmdHook? _activeSteamCmd;
 
 class MyApp extends StatefulWidget {
   const MyApp({super.key});
@@ -37,21 +39,20 @@ class MyApp extends StatefulWidget {
 }
 
 class _MyAppState extends State<MyApp> {
-  late TDThemeData _themeData;
+  late TThemeData _themeData;
 
   @override
   void initState() {
     super.initState();
-    _themeData = TDThemeData.defaultData();
+    _themeData = TThemeData.defaultData();
   }
 
   @override
   Widget build(BuildContext context) {
     return GetMaterialApp(
       title: 'Wallpaper Engine 下载器',
-      theme: ThemeData(
-        extensions: [_themeData],
-        colorScheme: ColorScheme.light(primary: _themeData.brandNormalColor),
+      theme: TThemeBuilder.light(
+        _themeData,
       ).useSystemChineseFont(Brightness.light),
       home: const MyHomePage(),
     );
@@ -97,7 +98,7 @@ class _MyHomePageState extends State<MyHomePage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: TDTheme.of(context).grayColor1,
+      backgroundColor: context.tTheme.grayColor1,
       body: Container(
         padding: const EdgeInsets.all(24),
         child: Row(
@@ -131,14 +132,14 @@ class _MyHomePageState extends State<MyHomePage> {
       children: [
         Row(
           children: [
-            Icon(TDIcons.folder, color: TDTheme.of(context).brandColor7),
+            Icon(Icons.folder, color: context.tTheme.brandColor7),
             SizedBox(width: 8),
             Text(
               '壁纸路径设置',
               style: TextStyle(
                 fontSize: 16,
                 fontWeight: FontWeight.w600,
-                color: TDTheme.of(context).fontGyColor1,
+                color: context.tTheme.textColorPrimary,
               ),
             ),
           ],
@@ -151,19 +152,21 @@ class _MyHomePageState extends State<MyHomePage> {
             return Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                TDTag(
+                TTag(
                   hasPath ? "已选择 wallpaper64.exe" : "未选择 wallpaper64.exe",
-                  theme: hasPath ? TDTagTheme.success : TDTagTheme.warning,
-                  // variant: TDTagVariant.light,
-                  icon: hasPath ? TDIcons.check_circle : TDIcons.close_circle,
+                  colorPreset: hasPath
+                      ? TTagColorPreset.success
+                      : TTagColorPreset.warning,
+                  variant: TTagVariant.light,
+                  icon: hasPath ? Icons.check_circle : Icons.cancel,
                 ),
                 SizedBox(width: 16),
-                TDButton(
-                  text: '选择文件',
-                  theme: TDButtonTheme.primary,
-                  type: TDButtonType.outline,
-                  icon: TDIcons.browse,
-                  onTap: () async {
+                TButton(
+                  child: const Text('选择文件'),
+                  colorPreset: TButtonColorPreset.primary,
+                  variant: TButtonVariant.outline,
+                  icon: const Icon(Icons.folder_open),
+                  onPressed: () async {
                     final file = OpenFilePicker()
                       ..filterSpecification = {
                         'Wallpaper Engine': 'wallpaper64.exe',
@@ -176,7 +179,7 @@ class _MyHomePageState extends State<MyHomePage> {
                       prefs.setString('wallpaper64.exe', result.path);
                       doLink(true);
                       setState(() {});
-                      TDToast.showSuccess('文件选择成功!', context: Get.context!);
+                      TToast.showSuccess('文件选择成功!', context: Get.context!);
                     }
                   },
                 ),
@@ -198,14 +201,14 @@ class _MyHomePageState extends State<MyHomePage> {
             _buildFileSelectionSection(),
             Row(
               children: [
-                Icon(TDIcons.user, color: TDTheme.of(context).brandColor7),
+                Icon(Icons.person, color: context.tTheme.brandColor7),
                 SizedBox(width: 8),
                 Text(
                   'Steam 账号设置',
                   style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.w600,
-                    color: TDTheme.of(context).fontGyColor1,
+                    color: context.tTheme.textColorPrimary,
                   ),
                 ),
               ],
@@ -214,26 +217,28 @@ class _MyHomePageState extends State<MyHomePage> {
             Row(
               children: [
                 Flexible(
-                  child: TDInput(
-                    leftLabel: '账号',
+                  child: TInput(
+                    prefix: const Text('账号'),
                     controller: _nameController,
                     hintText: '请输入Steam账号',
-                    type: TDInputType.normal,
                   ),
                 ),
                 SizedBox(width: 16),
                 Flexible(
-                  child: TDInput(
-                    leftLabel: '密码',
+                  child: TInput(
+                    prefix: const Text('密码'),
                     controller: _passwdController,
                     hintText: '请输入Steam密码',
-                    type: TDInputType.normal,
                     obscureText: !_isPasswordVisible,
-                    rightBtn: TDButton(
-                      icon: _isPasswordVisible
-                          ? TDIcons.browse_off
-                          : TDIcons.browse,
-                      onTap: () {
+                    suffix: TButton(
+                      variant: TButtonVariant.text,
+                      shape: TButtonShape.square,
+                      icon: Icon(
+                        _isPasswordVisible
+                            ? Icons.visibility_off
+                            : Icons.visibility,
+                      ),
+                      onPressed: () {
                         setState(() {
                           _isPasswordVisible = !_isPasswordVisible;
                         });
@@ -247,25 +252,25 @@ class _MyHomePageState extends State<MyHomePage> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                TDButton(
-                  text: '保存账号密码',
-                  theme: TDButtonTheme.primary,
-                  type: TDButtonType.fill,
-                  icon: TDIcons.save,
-                  onTap: () async {
+                TButton(
+                  child: const Text('保存账号密码'),
+                  colorPreset: TButtonColorPreset.primary,
+                  variant: TButtonVariant.fill,
+                  icon: const Icon(Icons.save),
+                  onPressed: () async {
                     final prefs = await SharedPreferences.getInstance();
                     prefs.setString('SteamPSWD', _passwdController.text);
                     prefs.setString('SteamName', _nameController.text);
-                    TDToast.showSuccess('保存成功!', context: Get.context!);
+                    TToast.showSuccess('保存成功!', context: Get.context!);
                   },
                 ),
                 SizedBox(width: 16),
-                TDButton(
-                  text: '清除账号密码',
-                  theme: TDButtonTheme.danger,
-                  type: TDButtonType.outline,
-                  icon: TDIcons.clear,
-                  onTap: () async {
+                TButton(
+                  child: const Text('清除账号密码'),
+                  colorPreset: TButtonColorPreset.danger,
+                  variant: TButtonVariant.outline,
+                  icon: const Icon(Icons.clear),
+                  onPressed: () async {
                     final prefs = await SharedPreferences.getInstance();
                     prefs.remove("SteamPSWD");
                     prefs.remove("SteamName");
@@ -273,7 +278,7 @@ class _MyHomePageState extends State<MyHomePage> {
                       _nameController.clear();
                       _passwdController.clear();
                     });
-                    TDToast.showSuccess('已清除!', context: Get.context!);
+                    TToast.showSuccess('已清除!', context: Get.context!);
                   },
                 ),
               ],
@@ -292,12 +297,12 @@ class _MyHomePageState extends State<MyHomePage> {
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            TDButton(
-              text: '开源地址',
-              theme: TDButtonTheme.light,
-              type: TDButtonType.text,
-              icon: TDIcons.link,
-              onTap: () {
+            TButton(
+              child: const Text('开源地址'),
+              colorPreset: TButtonColorPreset.light,
+              variant: TButtonVariant.text,
+              icon: const Icon(Icons.link),
+              onPressed: () {
                 _launchUrl(
                   "https://github.com/user1121114685/Wallpaper_Engine",
                 );
@@ -322,14 +327,14 @@ class _MyHomePageState extends State<MyHomePage> {
           children: [
             Row(
               children: [
-                Icon(TDIcons.download, color: TDTheme.of(context).brandColor7),
+                Icon(Icons.download, color: context.tTheme.brandColor7),
                 SizedBox(width: 8),
                 Text(
                   '下载壁纸',
                   style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.w600,
-                    color: TDTheme.of(context).fontGyColor1,
+                    color: context.tTheme.textColorPrimary,
                   ),
                 ),
               ],
@@ -338,12 +343,11 @@ class _MyHomePageState extends State<MyHomePage> {
             Row(
               children: [
                 Flexible(
-                  child: TDInput(
+                  child: TInput(
                     controller: urlController,
                     hintText:
                         '例如: https://steamcommunity.com/sharedfiles/filedetails/?id=1289832516',
-                    type: TDInputType.normal,
-                    leftIcon: Icon(TDIcons.link),
+                    prefix: const Icon(Icons.link),
                     maxLines: 1,
                     onEditingComplete: () {
                       _handleDownload();
@@ -351,13 +355,13 @@ class _MyHomePageState extends State<MyHomePage> {
                   ),
                 ),
                 SizedBox(width: 16),
-                TDButton(
-                  text: '下载',
-                  theme: TDButtonTheme.primary,
-                  type: TDButtonType.fill,
-                  icon: TDIcons.download,
-                  size: TDButtonSize.large,
-                  onTap: _handleDownload,
+                TButton(
+                  child: const Text('下载'),
+                  colorPreset: TButtonColorPreset.primary,
+                  variant: TButtonVariant.fill,
+                  icon: const Icon(Icons.download),
+                  size: TButtonSize.large,
+                  onPressed: _handleDownload,
                 ),
               ],
             ),
@@ -369,26 +373,25 @@ class _MyHomePageState extends State<MyHomePage> {
                   style: TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.w500,
-                    color: TDTheme.of(context).fontGyColor1,
+                    color: context.tTheme.textColorPrimary,
                   ),
                 ),
                 SizedBox(width: 8),
-                TDSwitch(
-                  isOn: multidown,
+                TSwitch(
+                  value: multidown,
                   onChanged: (value) {
                     setState(() {
                       multidown = value;
                     });
-                    return true;
                   },
                 ),
                 SizedBox(width: 24),
-                TDTag(
+                TTag(
                   multidown ? '整页模式' : '单个模式',
-                  theme: multidown
-                      ? TDTagTheme.primary
-                      : TDTagTheme.defaultTheme,
-                  // variant: TDTagVariant.light,
+                  colorPreset: multidown
+                      ? TTagColorPreset.primary
+                      : TTagColorPreset.defaultTheme,
+                  variant: TTagVariant.light,
                 ),
               ],
             ),
@@ -407,23 +410,23 @@ class _MyHomePageState extends State<MyHomePage> {
             padding: const EdgeInsets.all(20),
             child: Row(
               children: [
-                Icon(TDIcons.chat, color: TDTheme.of(context).brandColor7),
+                Icon(Icons.chat, color: context.tTheme.brandColor7),
                 SizedBox(width: 8),
                 Text(
                   '运行日志',
                   style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.w600,
-                    color: TDTheme.of(context).fontGyColor1,
+                    color: context.tTheme.textColorPrimary,
                   ),
                 ),
                 Spacer(),
-                TDButton(
-                  text: '清空日志',
-                  theme: TDButtonTheme.light,
-                  type: TDButtonType.text,
-                  icon: TDIcons.clear,
-                  onTap: () {
+                TButton(
+                  child: const Text('清空日志'),
+                  colorPreset: TButtonColorPreset.light,
+                  variant: TButtonVariant.text,
+                  icon: const Icon(Icons.clear),
+                  onPressed: () {
                     setState(() {
                       logText.clear();
                       logsNotifier.value = "";
@@ -433,7 +436,7 @@ class _MyHomePageState extends State<MyHomePage> {
               ],
             ),
           ),
-          Divider(height: 1, color: TDTheme.of(context).grayColor3),
+          Divider(height: 1, color: context.tTheme.grayColor3),
           Flexible(
             child: Container(
               padding: const EdgeInsets.all(20),
@@ -451,8 +454,8 @@ class _MyHomePageState extends State<MyHomePage> {
                         ),
                         decoration: BoxDecoration(
                           color: index == 0
-                              ? TDTheme.of(context).brandColor1
-                              : TDTheme.of(context).grayColor2,
+                              ? context.tTheme.brandColor1
+                              : context.tTheme.grayColor2,
                           borderRadius: BorderRadius.circular(4),
                         ),
                         child: Text(
@@ -460,8 +463,8 @@ class _MyHomePageState extends State<MyHomePage> {
                           style: TextStyle(
                             fontSize: 12,
                             color: index == 0
-                                ? TDTheme.of(context).brandColor7
-                                : TDTheme.of(context).fontGyColor2,
+                                ? context.tTheme.brandColor7
+                                : context.tTheme.textColorSecondary,
                             fontFamily: 'Consolas',
                           ),
                         ),
@@ -472,19 +475,36 @@ class _MyHomePageState extends State<MyHomePage> {
               ),
             ),
           ),
+          Divider(height: 1, color: context.tTheme.grayColor3),
+          ValueListenableBuilder<bool>(
+            valueListenable: _steamCmdRunning,
+            builder: (context, running, child) => ValueListenableBuilder<bool>(
+              valueListenable: _steamCmdInputReady,
+              builder: (context, inputReady, child) => SteamGuardInput(
+                enabled: inputReady,
+                stopEnabled: running,
+                onSend: _sendSteamGuardCode,
+                onStop: _stopSteamCmd,
+              ),
+            ),
+          ),
         ],
       ),
     );
   }
 
   void _handleDownload() {
+    if (_steamCmdRunning.value) {
+      TToast.showFail('SteamCMD 正在运行', context: context);
+      return;
+    }
     RegExp exp = RegExp(r"id=\d+");
     var fileid = exp.stringMatch(urlController.text);
 
     if (fileid == null) {
       urlController.clear();
       logTextAdd("请输入正确的ID,连接包含id=xxxxxx");
-      TDToast.showFail('连接有误！', context: context);
+      TToast.showFail('连接有误！', context: context);
     } else {
       if (multidown) {
         multiDownFile();
@@ -510,90 +530,125 @@ void _launchUrl(String urlString) async {
   if (!await launchUrl(url)) throw 'Could not launch $url';
 }
 
-Future toDownItem(String downfileid) async {
-  final prefs = await SharedPreferences.getInstance();
-  var passWD = prefs.get("SteamPSWD");
-  var name = prefs.get("SteamName");
+Future<void> _sendSteamGuardCode(String code) async {
+  final session = _activeSteamCmd;
+  if (session == null) return;
+  await session.sendInput(code);
+  await logTextAdd('Steam Guard 验证码已发送');
+}
 
-  if (name != null && passWD != null) {
-    if (downfileid == "" || downfileid.length <= 9) {
-      urlController.clear();
-      logTextAdd("请输入正确的ID,连接包含id=xxxxxx");
-    } else {
-      downfileid = downfileid.substring(3);
-      logTextAdd("ID正确  开始下载...");
-      Future downItem() async {
-        String executablePath = executableDirPath();
-
-        var script =
-            "$executablePath\\data\\flutter_assets\\assets\\steamcmd\\steamcmd.exe +login $name $passWD +workshop_download_item 431960 $downfileid +quit";
-        var shell = Shell();
-        await shell.run("cmd /c start $script");
-      }
-
-      doLink(false).then((value) {
-        logTextAdd("开始下载 $downfileid");
-        downItem().then((value) {
-          urlController.clear();
-          logTextAdd("已完成 $downfileid 下载");
-        });
-      });
-    }
-  } else {
-    logTextAdd("请先输入Steam账号密码，并且该账号已经购买了Wallpaper Engine");
+void _stopSteamCmd() {
+  if (_activeSteamCmd?.stop() ?? false) {
+    logTextAdd('正在停止 SteamCMD...');
   }
 }
 
-Future multiDownFile() async {
-  List<String> ids = [];
-  Response response;
-  var dio = Dio();
-  response = await dio.get(urlController.text);
-  RegExp exp = RegExp(r"id=\d+");
-  var fileIds = exp.allMatches(response.data.toString());
-
-  for (Match m in fileIds) {
-    if (m[0]!.length <= 9) {
-      continue;
-    }
-    ids.add(m[0]!);
-    if (kDebugMode) {
-      print(m[0]!);
-    }
+Future<bool> _runSteamCmd(List<String> arguments) async {
+  if (_activeSteamCmd != null) {
+    await logTextAdd('已有 SteamCMD 任务正在运行');
+    return false;
   }
-
-  doLink(false).then((v) {
-    runScriptDown(ids);
-  });
+  final session = SteamCmdHook(
+    onOutput: logSteamCmdOutput,
+    onInteractiveReady: (ready) => _steamCmdInputReady.value = ready,
+    onComplete: () {
+      _steamCmdRunning.value = false;
+      _steamCmdInputReady.value = false;
+    },
+  );
+  _activeSteamCmd = session;
+  _steamCmdRunning.value = true;
+  try {
+    final steamCmdPath =
+        '${executableDirPath()}\\data\\flutter_assets\\assets\\steamcmd\\steamcmd.exe';
+    if (!await session.start(steamCmdPath, arguments)) return false;
+    final exitCode = await session.completion;
+    finishSteamCmdOutput();
+    await logTextAdd('SteamCMD 会话已结束，退出码：$exitCode');
+    return exitCode == 0;
+  } finally {
+    _steamCmdRunning.value = false;
+    _steamCmdInputReady.value = false;
+    if (identical(_activeSteamCmd, session)) _activeSteamCmd = null;
+    await session.dispose();
+  }
 }
 
-Future runScriptDown(List<String> ids) async {
+Future<void> toDownItem(String downfileid) async {
   final prefs = await SharedPreferences.getInstance();
-  var passWD = prefs.get("SteamPSWD");
-  var name = prefs.get("SteamName");
-  String runDir = Directory.current.path;
-  // 这样可以多次点击下载不会被覆盖掉原来的ids
-  String path = "$runDir/down_ids_${DateTime.timestamp().millisecond}.txt";
-  File file = File(path);
-  logTextAdd("开始 整页下载 ${ids.first} 开头的多个壁纸.....");
-  Future.forEach(ids, (element) {
-    element = element.toString().substring(3);
-    file.writeAsStringSync(
-      "workshop_download_item 431960 $element\n",
-      mode: FileMode.append,
-    );
-  });
-
-  String executablePath = executableDirPath();
-  if (kDebugMode) {
-    print('当前正在下载整页文件');
+  final password = prefs.getString('SteamPSWD');
+  final name = prefs.getString('SteamName');
+  if (name == null || password == null) {
+    await logTextAdd('请先输入 Steam 账号密码，并确认该账号已购买 Wallpaper Engine');
+    return;
   }
-  var script =
-      "$executablePath\\data\\flutter_assets\\assets\\steamcmd\\steamcmd.exe +login $name $passWD +runscript $path +quit";
-  var shell = Shell();
-  await shell
-      .run("cmd /c start $script")
-      .then((value) => logTextAdd("已完成 整页下载 ${ids.first} 开头的多个壁纸....."));
-  file.deleteSync();
+  if (downfileid.length <= 9) {
+    urlController.clear();
+    await logTextAdd('请输入正确的 ID，链接需要包含 id=xxxxxx');
+    return;
+  }
+
+  final id = downfileid.substring(3);
+  await doLink(false);
+  await logTextAdd('开始下载 $id');
+  final completed = await _runSteamCmd([
+    '+login',
+    name,
+    password,
+    '+workshop_download_item',
+    '431960',
+    id,
+    '+quit',
+  ]);
   urlController.clear();
+  if (completed) await logTextAdd('SteamCMD 已正常退出，下载命令已结束：$id');
+}
+
+Future<void> multiDownFile() async {
+  final response = await Dio().get(urlController.text);
+  final ids = RegExp(r'id=\d+')
+      .allMatches(response.data.toString())
+      .map((match) => match[0]!)
+      .where((id) => id.length > 9)
+      .toSet()
+      .toList();
+  if (ids.isEmpty) {
+    await logTextAdd('这个页面没有可下载的创意工坊项目');
+    return;
+  }
+  await doLink(false);
+  await runScriptDown(ids);
+}
+
+Future<void> runScriptDown(List<String> ids) async {
+  if (ids.isEmpty) return;
+  final prefs = await SharedPreferences.getInstance();
+  final password = prefs.getString('SteamPSWD');
+  final name = prefs.getString('SteamName');
+  if (name == null || password == null) {
+    await logTextAdd('请先输入 Steam 账号密码，并确认该账号已购买 Wallpaper Engine');
+    return;
+  }
+  final runDirectory = Directory.current;
+  final file = File(
+    '${runDirectory.path}\\down_ids_${DateTime.now().microsecondsSinceEpoch}.txt',
+  );
+  final commands = ids.map(
+    (id) => 'workshop_download_item 431960 ${id.substring(3)}',
+  );
+  await file.writeAsString('${commands.join('\n')}\n');
+  try {
+    await logTextAdd('开始整页下载 ${ids.first} 开头的 ${ids.length} 个壁纸');
+    await _runSteamCmd([
+      '+login',
+      name,
+      password,
+      '+runscript',
+      file.path,
+      '+quit',
+    ]);
+  } finally {
+    if (await file.exists()) await file.delete();
+    urlController.clear();
+  }
 }

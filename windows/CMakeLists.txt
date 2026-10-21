@@ -52,6 +52,21 @@ add_subdirectory(${FLUTTER_MANAGED_DIR})
 # Application build; see runner/CMakeLists.txt.
 add_subdirectory("runner")
 
+set(STEAMCMD_HOOK_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../hook")
+set(STEAMCMD_HOOK_BUILD_DIR "${PROJECT_BUILD_DIR}steamcmd_hook_x64")
+include(ExternalProject)
+ExternalProject_Add(steamcmd_hook
+  SOURCE_DIR "${STEAMCMD_HOOK_SOURCE_DIR}"
+  BINARY_DIR "${STEAMCMD_HOOK_BUILD_DIR}"
+  CMAKE_GENERATOR "${CMAKE_GENERATOR}"
+  CMAKE_GENERATOR_PLATFORM x64
+  CMAKE_ARGS
+    "-DCMAKE_INSTALL_PREFIX=${CMAKE_BINARY_DIR}/runner/$<CONFIG>"
+    "-DDETOURS_SOURCE_DIR=${STEAMCMD_HOOK_SOURCE_DIR}/vendor/Detours/src"
+  INSTALL_COMMAND "${CMAKE_COMMAND}" --install <BINARY_DIR> --config $<CONFIG>
+)
+add_dependencies(${BINARY_NAME} steamcmd_hook)
+
 
 # Generated plugin build rules, which manage building the plugins and adding
 # them to the application.

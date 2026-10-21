@@ -1,10 +1,8 @@
 import 'dart:async';
 import 'dart:io';
 
-import 'package:flutter/cupertino.dart';
-import 'package:get/get.dart';
+import 'package:flutter/widgets.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:tdesign_flutter/tdesign_flutter.dart';
 
 String executableDirPath() {
   // 获取解析后的完整可执行文件路径（绝对路径）
@@ -21,34 +19,57 @@ List<String> logText = [];
 ValueNotifier<String> logsNotifier = ValueNotifier<String>("");
 TextEditingController urlController = TextEditingController();
 String wallpaper64 = "";
+String? _pendingSteamCmdLine;
 
 Future logTextAdd(String log) async {
+  _pendingSteamCmdLine = null;
   logText.insert(0, log);
+  if (logText.length > 1000) logText.removeLast();
   logsNotifier.value = log;
 }
 
-bool _showSteamGuardCode = false;
-Future logTextAddList(List<String> log) async {
-  logText.insertAll(0, log.reversed);
-  logsNotifier.value = log.join();
-  if (log.contains("Steam Guard code:") && !_showSteamGuardCode) {
-    _showSteamGuardCode = true;
-    showGeneralDialog(
-      context: Get.context!,
-      pageBuilder:
-          (
-            BuildContext buildContext,
-            Animation<double> animation,
-            Animation<double> secondaryAnimation,
-          ) {
-            return TDConfirmDialog(
-              title: "邮件验证码",
-              content: "请前往你的邮箱，将验证码填写到steamCMD运行框中",
-              buttonStyle: TDDialogButtonStyle.text,
-            );
-          },
-    );
+void logSteamCmdOutput(String output) {
+  if (output.isEmpty) return;
+  final normalized = output.replaceAll('\r\n', '\n').replaceAll('\r', '\n');
+  final chunks = normalized.split('\n');
+  var first = chunks.first;
+  if (_pendingSteamCmdLine != null) {
+    final previousIndex = logText.indexOf(_pendingSteamCmdLine!);
+    if (previousIndex >= 0) logText.removeAt(previousIndex);
+    first = '$_pendingSteamCmdLine$first';
+    _pendingSteamCmdLine = null;
   }
+
+  final completed = <String>[];
+  if (chunks.length == 1) {
+    if (first.isNotEmpty) _pendingSteamCmdLine = first;
+  } else if (first.isNotEmpty) {
+    completed.add(first);
+  }
+  for (var index = 1; index < chunks.length; index++) {
+    final chunk = chunks[index];
+    if (index == chunks.length - 1) {
+      if (chunk.isNotEmpty) _pendingSteamCmdLine = chunk;
+    } else if (chunk.isNotEmpty) {
+      completed.add(chunk);
+    }
+  }
+
+  if (completed.isNotEmpty) logText.insertAll(0, completed.reversed);
+  if (_pendingSteamCmdLine != null) logText.insert(0, _pendingSteamCmdLine!);
+  if (logText.length > 1000) logText.removeRange(1000, logText.length);
+  logsNotifier.value = output;
+}
+
+void finishSteamCmdOutput() {
+  _pendingSteamCmdLine = null;
+}
+
+Future logTextAddList(List<String> log) async {
+  _pendingSteamCmdLine = null;
+  logText.insertAll(0, log.reversed);
+  if (logText.length > 1000) logText.removeRange(1000, logText.length);
+  logsNotifier.value = log.join();
 }
 
 // 保持原有的工具函数不变

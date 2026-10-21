@@ -1,0 +1,9 @@
+EXPORTS
+  CreateOutputPipe
+  StartSteamCmdHooked
+  WaitForPipeConnection
+  ReadPipeOutput
+  WriteProcessInput
+  IsProcessRunning
+  WaitForCompletion
+  Cleanup
