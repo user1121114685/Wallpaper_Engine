@@ -16,20 +16,43 @@ String executableDirPath() {
 }
 
 List<String> logText = [];
-ValueNotifier<String> logsNotifier = ValueNotifier<String>("");
+ValueNotifier<int> logsNotifier = ValueNotifier<int>(0);
 TextEditingController urlController = TextEditingController();
 String wallpaper64 = "";
 String? _pendingSteamCmdLine;
+final ValueNotifier<int> steamGuardPromptNotifier = ValueNotifier<int>(0);
+final SteamGuardPromptDetector _steamGuardPromptDetector =
+    SteamGuardPromptDetector();
+
+class SteamGuardPromptDetector {
+  static const _prompt = 'steam guard code:';
+  String _tail = '';
+
+  bool add(String output) {
+    final combined = '$_tail$output'.toLowerCase();
+    final found = combined.contains(_prompt);
+    final keepLength = _prompt.length - 1;
+    _tail = combined.length <= keepLength
+        ? combined
+        : combined.substring(combined.length - keepLength);
+    return found;
+  }
+
+  void reset() => _tail = '';
+}
 
 Future logTextAdd(String log) async {
   _pendingSteamCmdLine = null;
   logText.insert(0, log);
   if (logText.length > 1000) logText.removeLast();
-  logsNotifier.value = log;
+  logsNotifier.value++;
 }
 
 void logSteamCmdOutput(String output) {
   if (output.isEmpty) return;
+  if (_steamGuardPromptDetector.add(output)) {
+    steamGuardPromptNotifier.value++;
+  }
   final normalized = output.replaceAll('\r\n', '\n').replaceAll('\r', '\n');
   final chunks = normalized.split('\n');
   var first = chunks.first;
@@ -58,18 +81,19 @@ void logSteamCmdOutput(String output) {
   if (completed.isNotEmpty) logText.insertAll(0, completed.reversed);
   if (_pendingSteamCmdLine != null) logText.insert(0, _pendingSteamCmdLine!);
   if (logText.length > 1000) logText.removeRange(1000, logText.length);
-  logsNotifier.value = output;
+  logsNotifier.value++;
 }
 
 void finishSteamCmdOutput() {
   _pendingSteamCmdLine = null;
+  _steamGuardPromptDetector.reset();
 }
 
 Future logTextAddList(List<String> log) async {
   _pendingSteamCmdLine = null;
   logText.insertAll(0, log.reversed);
   if (logText.length > 1000) logText.removeRange(1000, logText.length);
-  logsNotifier.value = log.join();
+  logsNotifier.value++;
 }
 
 // 保持原有的工具函数不变

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:chinese_font_library/chinese_font_library.dart';
@@ -69,6 +70,9 @@ class MyHomePage extends StatefulWidget {
 class _MyHomePageState extends State<MyHomePage> {
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _passwdController = TextEditingController();
+  final ScrollController _logScrollController = ScrollController();
+  bool _steamGuardDialogOpen = false;
+  bool _steamGuardPromptPending = false;
   bool _isPasswordVisible = false;
   String? appVersion;
 
@@ -82,9 +86,55 @@ class _MyHomePageState extends State<MyHomePage> {
   @override
   void initState() {
     super.initState();
+    steamGuardPromptNotifier.addListener(_handleSteamGuardPrompt);
+    _steamCmdInputReady.addListener(_handleSteamCmdInputReady);
+    logsNotifier.addListener(_scrollLogsToLatest);
     _loadAppVersion();
     _launchUrl("https://steamcommunity.com/app/431960/workshop/");
     _loadSavedCredentials();
+  }
+
+  void _scrollLogsToLatest() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_logScrollController.hasClients) _logScrollController.jumpTo(0);
+    });
+  }
+
+  void _handleSteamGuardPrompt() {
+    _steamGuardPromptPending = true;
+    _showPendingSteamGuardDialog();
+  }
+
+  void _handleSteamCmdInputReady() {
+    if (_steamCmdInputReady.value) _showPendingSteamGuardDialog();
+  }
+
+  void _showPendingSteamGuardDialog() {
+    if (!mounted ||
+        !_steamGuardPromptPending ||
+        !_steamCmdInputReady.value ||
+        _steamGuardDialogOpen) {
+      return;
+    }
+
+    _steamGuardPromptPending = false;
+    _steamGuardDialogOpen = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) {
+        _steamGuardDialogOpen = false;
+        return;
+      }
+      unawaited(
+        showDialog<void>(
+          context: context,
+          barrierDismissible: false,
+          builder: (_) => SteamGuardCodeDialog(onSubmit: _sendSteamCmdInput),
+        ).whenComplete(() {
+          _steamGuardDialogOpen = false;
+          _showPendingSteamGuardDialog();
+        }),
+      );
+    });
   }
 
   Future<void> _loadSavedCredentials() async {
@@ -429,7 +479,7 @@ class _MyHomePageState extends State<MyHomePage> {
                   onPressed: () {
                     setState(() {
                       logText.clear();
-                      logsNotifier.value = "";
+                      logsNotifier.value++;
                     });
                   },
                 ),
@@ -444,6 +494,8 @@ class _MyHomePageState extends State<MyHomePage> {
                 valueListenable: logsNotifier,
                 builder: (context, value, child) {
                   return ListView.separated(
+                    controller: _logScrollController,
+                    reverse: true,
                     itemCount: logText.length,
                     separatorBuilder: (context, index) => SizedBox(height: 8),
                     itemBuilder: (BuildContext context, int index) {
@@ -483,7 +535,7 @@ class _MyHomePageState extends State<MyHomePage> {
               builder: (context, inputReady, child) => SteamGuardInput(
                 enabled: inputReady,
                 stopEnabled: running,
-                onSend: _sendSteamGuardCode,
+                onSend: _sendSteamCmdInput,
                 onStop: _stopSteamCmd,
               ),
             ),
@@ -518,6 +570,10 @@ class _MyHomePageState extends State<MyHomePage> {
 
   @override
   void dispose() {
+    steamGuardPromptNotifier.removeListener(_handleSteamGuardPrompt);
+    _steamCmdInputReady.removeListener(_handleSteamCmdInputReady);
+    logsNotifier.removeListener(_scrollLogsToLatest);
+    _logScrollController.dispose();
     urlController.dispose();
     _nameController.dispose();
     _passwdController.dispose();
@@ -530,11 +586,11 @@ void _launchUrl(String urlString) async {
   if (!await launchUrl(url)) throw 'Could not launch $url';
 }
 
-Future<void> _sendSteamGuardCode(String code) async {
+Future<void> _sendSteamCmdInput(String input) async {
   final session = _activeSteamCmd;
-  if (session == null) return;
-  await session.sendInput(code);
-  await logTextAdd('Steam Guard 验证码已发送');
+  if (session == null) throw StateError('SteamCMD 会话已结束。');
+  await session.sendInput(input);
+  await logTextAdd('已向 SteamCMD 发送输入');
 }
 
 void _stopSteamCmd() {
