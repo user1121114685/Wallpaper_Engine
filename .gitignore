@@ -62,3 +62,4 @@ wallpaper_engine_workshop_downloader.zip
 /hook/*.exp
 /hook/*.exe
 /steamcmd_hook.dll
+/hook/build
