@@ -4,10 +4,10 @@ import 'dart:io';
 import 'package:chinese_font_library/chinese_font_library.dart';
 import 'package:dio/dio.dart';
 import 'package:filepicker_windows/filepicker_windows.dart';
+import 'package:flutter/services.dart';
 import 'package:get/get.dart' hide Response;
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:flutter/services.dart';
 import 'package:tdesign_flutter/tdesign_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:wallpaper_engine_workshop_downloader/steam_guard_input.dart';
@@ -66,12 +66,40 @@ class _MyHomePageState extends State<MyHomePage> {
   bool _steamGuardPromptPending = false;
   bool _isPasswordVisible = false;
   String? appVersion;
+  String? _latestVersion;
 
   Future<void> _loadAppVersion() async {
     final PackageInfo packageInfo = await PackageInfo.fromPlatform();
+    if (!mounted) return;
     setState(() {
       appVersion = packageInfo.version;
     });
+
+    final client = Dio(
+      BaseOptions(
+        connectTimeout: const Duration(seconds: 6),
+        receiveTimeout: const Duration(seconds: 6),
+        headers: const {'Accept': 'application/vnd.github+json'},
+      ),
+    );
+    try {
+      final response = await client.get<Map<String, dynamic>>(
+        'https://api.github.com/repos/user1121114685/Wallpaper_Engine/releases/latest',
+      );
+      final tag = response.data?['tag_name'];
+      if (tag is! String ||
+          !isReleaseVersionNewer(packageInfo.version, tag) ||
+          !mounted) {
+        return;
+      }
+      setState(() {
+        _latestVersion = tag.replaceFirst(RegExp(r'^[vV]'), '');
+      });
+    } on Object {
+      return;
+    } finally {
+      client.close();
+    }
   }
 
   @override
@@ -348,9 +376,27 @@ class _MyHomePageState extends State<MyHomePage> {
                 );
               },
             ),
-            Text(
-              appVersion != null ? '软件版本: $appVersion' : '软件版本: 加载中...',
-              style: TextStyle(fontSize: 15, color: Colors.grey[600]),
+            Flexible(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Text(
+                    appVersion != null ? '软件版本: $appVersion' : '软件版本: 加载中...',
+                    textAlign: TextAlign.end,
+                    style: TextStyle(fontSize: 15, color: Colors.grey[600]),
+                  ),
+                  if (_latestVersion != null)
+                    TButton(
+                      colorPreset: TButtonColorPreset.primary,
+                      variant: TButtonVariant.text,
+                      icon: const Icon(Icons.system_update_alt),
+                      onPressed: () => _launchUrl(
+                        'https://github.com/user1121114685/Wallpaper_Engine/releases/latest',
+                      ),
+                      child: Text('有新版本 v$_latestVersion'),
+                    ),
+                ],
+              ),
             ),
           ],
         ),

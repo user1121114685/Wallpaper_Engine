@@ -2,7 +2,7 @@
 ; 有关创建 Inno Setup 脚本文件的详细信息请查阅帮助文档
 
 #define MyAppName "Wallpaper Engine 壁纸下载器"
-#define MyAppVersion "0.3.6"
+#define MyAppVersion "0.3.7"
 #define MyAppPublisher "联盟少侠"
 #define MyIconFileName ".\windows\runner\resources\app_icon.ico"
 
@@ -27,6 +27,8 @@ WizardStyle=modern
 SetupIconFile={#MyIconFileName}
 ; 请求管理员权限
 PrivilegesRequired=admin
+CloseApplications=yes
+RestartApplications=no
 
 [Files]
 ; 将当前目录下 \build\windows\x64\runner\Release\* 中的所有文件打包
@@ -40,7 +42,7 @@ Name: "{group}\{#MyAppName}"; Filename: "{app}\wallpaper_engine_workshop_downloa
 Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\wallpaper_engine_workshop_downloader.exe"; Tasks: desktopicon
 
 [Run]
-Filename: "{app}\wallpaper_engine_workshop_downloader.exe"; Description: "{cm:LaunchProgram,{#StringChange(MyAppName, '&', '&&')}}"; Flags: nowait postinstall skipifsilent runasoriginaluser
+Filename: "{app}\wallpaper_engine_workshop_downloader.exe"; Description: "{cm:LaunchProgram,{#StringChange(MyAppName, '&', '&&')}}"; Flags: nowait postinstall skipifsilent
 
 [Code]
 // 检查路径是否包含空格或非ASCII字符（可能是中文等）
@@ -75,7 +77,8 @@ var
   ResultCode: Integer;
 begin
   // 先尝试关闭正在运行的程序
-  Exec('taskkill.exe', '/F /IM wallpaper_engine_workshop_downloader.exe', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+  Exec(ExpandConstant('{sys}\taskkill.exe'), '/F /T /IM wallpaper_engine_workshop_downloader.exe', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+  Sleep(500);
   // 不管是否成功关闭，都继续进行，如果失败，可能程序没运行
 
   // 继续安装

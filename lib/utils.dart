@@ -23,6 +23,36 @@ final ValueNotifier<int> steamGuardPromptNotifier = ValueNotifier<int>(0);
 final SteamGuardPromptDetector _steamGuardPromptDetector =
     SteamGuardPromptDetector();
 
+bool isReleaseVersionNewer(String installedVersion, String releaseTag) {
+  final installed = _releaseVersionComponents(installedVersion);
+  final release = _releaseVersionComponents(releaseTag);
+  if (installed == null || release == null) return false;
+
+  for (var index = 0; index < installed.length; index++) {
+    if (release[index] != installed[index]) {
+      return release[index] > installed[index];
+    }
+  }
+  return false;
+}
+
+List<int>? _releaseVersionComponents(String version) {
+  final match = RegExp(
+    r'^[vV]?(\d+(?:\.\d+){0,2})(?:[-+][0-9A-Za-z.-]+)?$',
+  ).firstMatch(version.trim());
+  if (match == null) return null;
+
+  final components = match
+      .group(1)!
+      .split('.')
+      .map(int.parse)
+      .toList(growable: true);
+  while (components.length < 3) {
+    components.add(0);
+  }
+  return components;
+}
+
 class SteamGuardPromptDetector {
   static const _prompt = 'steam guard code:';
   String _tail = '';

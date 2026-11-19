@@ -67,6 +67,13 @@ void main() {
     expect(detector.add('steam guard code: '), isTrue);
   });
 
+  test('release version comparison handles tags and build metadata', () {
+    expect(isReleaseVersionNewer('0.3.7', 'v0.3.8'), isTrue);
+    expect(isReleaseVersionNewer('0.3.7', '0.3.7+307'), isFalse);
+    expect(isReleaseVersionNewer('0.9.9', '1.0.0'), isTrue);
+    expect(isReleaseVersionNewer('0.3.7', 'latest'), isFalse);
+  });
+
   test('repeated SteamCMD log output still publishes list updates', () {
     var updateCount = 0;
     void onUpdate() => updateCount++;
