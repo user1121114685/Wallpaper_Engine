@@ -47,13 +47,29 @@ int wmain(int argc, wchar_t** argv) {
   _setmode(_fileno(stdout), _O_BINARY);
   _setmode(_fileno(stdin), _O_BINARY);
   if (argc < 2) {
-    std::fputs("Usage: steamcmd_worker.exe <steamcmd.exe> [SteamCMD arguments...]\n", stderr);
+    std::fputs("Usage: steamcmd_worker.exe <steamcmd.exe> [--workshop-dir <directory>] [SteamCMD arguments...]\n", stderr);
     return 64;
+  }
+
+  int firstSteamArgument = 2;
+  if (argc > 2 && wcscmp(argv[2], L"--workshop-dir") == 0) {
+    if (argc < 4 || !SetEnvironmentVariableW(
+            L"WALLPAPER_ENGINE_WORKSHOP_DIR", argv[3])) {
+      ReportError(L"setting the workshop download directory");
+      return 64;
+    }
+    firstSteamArgument = 4;
+  } else if (!SetEnvironmentVariableW(
+                 L"WALLPAPER_ENGINE_WORKSHOP_DIR", nullptr)) {
+    ReportError(L"clearing the workshop download directory");
+    return 70;
   }
 
   std::vector<wchar_t> commandLine;
   for (int index = 1; index < argc; ++index) {
-    if (index != 1) commandLine.push_back(L' ');
+    if (index == 2 && firstSteamArgument == 4) continue;
+    if (index == 3 && firstSteamArgument == 4) continue;
+    if (!commandLine.empty()) commandLine.push_back(L' ');
     const std::wstring quoted = QuoteArgument(argv[index]);
     commandLine.insert(commandLine.end(), quoted.begin(), quoted.end());
   }

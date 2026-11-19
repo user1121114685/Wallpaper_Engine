@@ -40,6 +40,8 @@ void main() {
         'steamcmd-x64-hook-test-',
       );
       final steamCmd = File('${workspace.path}\\steamcmd.exe');
+      final workshopDirectory = Directory('${workspace.path}\\defaultprojects');
+      await workshopDirectory.create();
       SteamCmdHook? session;
       final transcript = StringBuffer();
       final codeSent = Completer<void>();
@@ -67,7 +69,14 @@ void main() {
           workerDirectory: workspace,
           onOutput: (output) => unawaited(onOutput(output)),
         );
-        expect(await session.start(steamCmd.path, const []), isTrue);
+        expect(
+          await session.start(
+            steamCmd.path,
+            const [],
+            workshopDirectory: workshopDirectory.path,
+          ),
+          isTrue,
+        );
         expect(
           await session.completion.timeout(const Duration(seconds: 25)),
           0,
@@ -76,6 +85,13 @@ void main() {
         expect(await is64BitSteamCmd(steamCmd), isTrue);
         final output = transcript.toString();
         expect(output, contains('Steam Guard code: '));
+        expect(output, contains('[fixture] workshop path redirected'));
+        expect(
+          await File(
+            '${workshopDirectory.path}\\fixture_item\\fixture.txt',
+          ).readAsString(),
+          'redirected workshop file',
+        );
         expect(output, contains('[fixture] ANSI log: 验证码处理通过'));
         expect(
           output,

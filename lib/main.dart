@@ -7,6 +7,7 @@ import 'package:filepicker_windows/filepicker_windows.dart';
 import 'package:get/get.dart' hide Response;
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter/services.dart';
 import 'package:tdesign_flutter/tdesign_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:wallpaper_engine_workshop_downloader/steam_guard_input.dart';
@@ -14,17 +15,7 @@ import 'package:wallpaper_engine_workshop_downloader/steamcmd_ffi.dart';
 import 'package:wallpaper_engine_workshop_downloader/utils.dart';
 
 Future main() async {
-  _initLogSystem();
   runApp(const MyApp());
-}
-
-void _initLogSystem() async {
-  String path = executableDirPath();
-  String logFile =
-      "$path\\data\\flutter_assets\\assets\\steamcmd\\logs\\console_log.txt";
-  File file = File(logFile);
-
-  LogWatcher(file).startWatching();
 }
 
 bool multidown = false;
@@ -227,7 +218,6 @@ class _MyHomePageState extends State<MyHomePage> {
                     if (result != null) {
                       final prefs = await SharedPreferences.getInstance();
                       prefs.setString('wallpaper64.exe', result.path);
-                      doLink(true);
                       setState(() {});
                       TToast.showSuccess('文件选择成功!', context: Get.context!);
                     }
@@ -499,25 +489,32 @@ class _MyHomePageState extends State<MyHomePage> {
                     itemCount: logText.length,
                     separatorBuilder: (context, index) => SizedBox(height: 8),
                     itemBuilder: (BuildContext context, int index) {
-                      return Container(
-                        padding: EdgeInsets.symmetric(
-                          vertical: 4,
-                          horizontal: 8,
-                        ),
-                        decoration: BoxDecoration(
-                          color: index == 0
-                              ? context.tTheme.brandColor1
-                              : context.tTheme.grayColor2,
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        child: Text(
+                      return GestureDetector(
+                        behavior: HitTestBehavior.opaque,
+                        onSecondaryTapDown: (details) => _showLogContextMenu(
                           logText[index],
-                          style: TextStyle(
-                            fontSize: 12,
+                          details.globalPosition,
+                        ),
+                        child: Container(
+                          padding: EdgeInsets.symmetric(
+                            vertical: 4,
+                            horizontal: 8,
+                          ),
+                          decoration: BoxDecoration(
                             color: index == 0
-                                ? context.tTheme.brandColor7
-                                : context.tTheme.textColorSecondary,
-                            fontFamily: 'Consolas',
+                                ? context.tTheme.brandColor1
+                                : context.tTheme.grayColor2,
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: Text(
+                            logText[index],
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: index == 0
+                                  ? context.tTheme.brandColor7
+                                  : context.tTheme.textColorSecondary,
+                              fontFamily: 'Consolas',
+                            ),
                           ),
                         ),
                       );
@@ -543,6 +540,21 @@ class _MyHomePageState extends State<MyHomePage> {
         ],
       ),
     );
+  }
+
+  Future<void> _showLogContextMenu(String text, Offset position) async {
+    final size = MediaQuery.sizeOf(context);
+    final action = await showMenu<String>(
+      context: context,
+      position: RelativeRect.fromLTRB(
+        position.dx,
+        position.dy,
+        size.width - position.dx,
+        size.height - position.dy,
+      ),
+      items: const [PopupMenuItem<String>(value: 'copy', child: Text('复制日志'))],
+    );
+    if (action == 'copy') await Clipboard.setData(ClipboardData(text: text));
   }
 
   void _handleDownload() {
@@ -599,7 +611,10 @@ void _stopSteamCmd() {
   }
 }
 
-Future<bool> _runSteamCmd(List<String> arguments) async {
+Future<bool> _runSteamCmd(
+  List<String> arguments, {
+  String? workshopDirectory,
+}) async {
   if (_activeSteamCmd != null) {
     await logTextAdd('已有 SteamCMD 任务正在运行');
     return false;
@@ -617,7 +632,13 @@ Future<bool> _runSteamCmd(List<String> arguments) async {
   try {
     final steamCmdPath =
         '${executableDirPath()}\\data\\flutter_assets\\assets\\steamcmd\\steamcmd.exe';
-    if (!await session.start(steamCmdPath, arguments)) return false;
+    if (!await session.start(
+      steamCmdPath,
+      arguments,
+      workshopDirectory: workshopDirectory,
+    )) {
+      return false;
+    }
     final exitCode = await session.completion;
     finishSteamCmdOutput();
     await logTextAdd('SteamCMD 会话已结束，退出码：$exitCode');
@@ -645,7 +666,11 @@ Future<void> toDownItem(String downfileid) async {
   }
 
   final id = downfileid.substring(3);
-  await doLink(false);
+  final workshopDirectory = await getWorkshopDownloadDirectory();
+  if (workshopDirectory == null) {
+    await logTextAdd('请先选择 Wallpaper Engine 的 wallpaper64.exe');
+    return;
+  }
   await logTextAdd('开始下载 $id');
   final completed = await _runSteamCmd([
     '+login',
@@ -655,7 +680,7 @@ Future<void> toDownItem(String downfileid) async {
     '431960',
     id,
     '+quit',
-  ]);
+  ], workshopDirectory: workshopDirectory.path);
   urlController.clear();
   if (completed) await logTextAdd('SteamCMD 已正常退出，下载命令已结束：$id');
 }
@@ -672,11 +697,18 @@ Future<void> multiDownFile() async {
     await logTextAdd('这个页面没有可下载的创意工坊项目');
     return;
   }
-  await doLink(false);
-  await runScriptDown(ids);
+  final workshopDirectory = await getWorkshopDownloadDirectory();
+  if (workshopDirectory == null) {
+    await logTextAdd('请先选择 Wallpaper Engine 的 wallpaper64.exe');
+    return;
+  }
+  await runScriptDown(ids, workshopDirectory: workshopDirectory.path);
 }
 
-Future<void> runScriptDown(List<String> ids) async {
+Future<void> runScriptDown(
+  List<String> ids, {
+  required String workshopDirectory,
+}) async {
   if (ids.isEmpty) return;
   final prefs = await SharedPreferences.getInstance();
   final password = prefs.getString('SteamPSWD');
@@ -702,7 +734,7 @@ Future<void> runScriptDown(List<String> ids) async {
       '+runscript',
       file.path,
       '+quit',
-    ]);
+    ], workshopDirectory: workshopDirectory);
   } finally {
     if (await file.exists()) await file.delete();
     urlController.clear();

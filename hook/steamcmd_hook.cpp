@@ -16,7 +16,7 @@
 namespace {
 constexpr GUID kConfigId = {0x2b715b62, 0xe190, 0x4b71,
                             {0x90, 0x17, 0x53, 0xb8, 0x8d, 0x96, 0x37, 0x12}};
-constexpr ULONG kConfigVersion = 1;
+constexpr ULONG kConfigVersion = 2;
 constexpr DWORD kBufferSize = 1024 * 1024;
 
 struct HookConfig {
@@ -24,6 +24,7 @@ struct HookConfig {
   HANDLE output;
   HANDLE input;
   wchar_t steamDirectory[MAX_PATH];
+  wchar_t workshopDirectory[MAX_PATH];
 };
 
 HMODULE g_module = nullptr;
@@ -43,6 +44,32 @@ using WriteConsoleWFn = BOOL(WINAPI*)(HANDLE, const VOID*, DWORD, LPDWORD, LPVOI
 using WriteConsoleAFn = BOOL(WINAPI*)(HANDLE, const VOID*, DWORD, LPDWORD, LPVOID);
 using WriteFileFn = BOOL(WINAPI*)(HANDLE, LPCVOID, DWORD, LPDWORD, LPOVERLAPPED);
 using ReadFileFn = BOOL(WINAPI*)(HANDLE, LPVOID, DWORD, LPDWORD, LPOVERLAPPED);
+using CreateFileWFn = HANDLE(WINAPI*)(LPCWSTR, DWORD, DWORD,
+    LPSECURITY_ATTRIBUTES, DWORD, DWORD, HANDLE);
+using CreateFileAFn = HANDLE(WINAPI*)(LPCSTR, DWORD, DWORD,
+    LPSECURITY_ATTRIBUTES, DWORD, DWORD, HANDLE);
+using CreateDirectoryWFn = BOOL(WINAPI*)(LPCWSTR, LPSECURITY_ATTRIBUTES);
+using CreateDirectoryAFn = BOOL(WINAPI*)(LPCSTR, LPSECURITY_ATTRIBUTES);
+using GetFileAttributesWFn = DWORD(WINAPI*)(LPCWSTR);
+using GetFileAttributesAFn = DWORD(WINAPI*)(LPCSTR);
+using GetFileAttributesExWFn = BOOL(WINAPI*)(LPCWSTR, GET_FILEEX_INFO_LEVELS,
+    LPVOID);
+using GetFileAttributesExAFn = BOOL(WINAPI*)(LPCSTR, GET_FILEEX_INFO_LEVELS,
+    LPVOID);
+using FindFirstFileWFn = HANDLE(WINAPI*)(LPCWSTR, LPWIN32_FIND_DATAW);
+using FindFirstFileAFn = HANDLE(WINAPI*)(LPCSTR, LPWIN32_FIND_DATAA);
+using DeleteFileWFn = BOOL(WINAPI*)(LPCWSTR);
+using DeleteFileAFn = BOOL(WINAPI*)(LPCSTR);
+using RemoveDirectoryWFn = BOOL(WINAPI*)(LPCWSTR);
+using RemoveDirectoryAFn = BOOL(WINAPI*)(LPCSTR);
+using MoveFileWFn = BOOL(WINAPI*)(LPCWSTR, LPCWSTR);
+using MoveFileAFn = BOOL(WINAPI*)(LPCSTR, LPCSTR);
+using MoveFileExWFn = BOOL(WINAPI*)(LPCWSTR, LPCWSTR, DWORD);
+using MoveFileExAFn = BOOL(WINAPI*)(LPCSTR, LPCSTR, DWORD);
+using CopyFileWFn = BOOL(WINAPI*)(LPCWSTR, LPCWSTR, BOOL);
+using CopyFileAFn = BOOL(WINAPI*)(LPCSTR, LPCSTR, BOOL);
+using SetFileAttributesWFn = BOOL(WINAPI*)(LPCWSTR, DWORD);
+using SetFileAttributesAFn = BOOL(WINAPI*)(LPCSTR, DWORD);
 using CreateProcessWFn = BOOL(WINAPI*)(LPCWSTR, LPWSTR, LPSECURITY_ATTRIBUTES,
     LPSECURITY_ATTRIBUTES, BOOL, DWORD, LPVOID, LPCWSTR,
     LPSTARTUPINFOW, LPPROCESS_INFORMATION);
@@ -54,8 +81,243 @@ WriteConsoleWFn g_realWriteConsoleW = WriteConsoleW;
 WriteConsoleAFn g_realWriteConsoleA = WriteConsoleA;
 WriteFileFn g_realWriteFile = WriteFile;
 ReadFileFn g_realReadFile = ReadFile;
+CreateFileWFn g_realCreateFileW = CreateFileW;
+CreateFileAFn g_realCreateFileA = CreateFileA;
+CreateDirectoryWFn g_realCreateDirectoryW = CreateDirectoryW;
+CreateDirectoryAFn g_realCreateDirectoryA = CreateDirectoryA;
+GetFileAttributesWFn g_realGetFileAttributesW = GetFileAttributesW;
+GetFileAttributesAFn g_realGetFileAttributesA = GetFileAttributesA;
+GetFileAttributesExWFn g_realGetFileAttributesExW = GetFileAttributesExW;
+GetFileAttributesExAFn g_realGetFileAttributesExA = GetFileAttributesExA;
+FindFirstFileWFn g_realFindFirstFileW = FindFirstFileW;
+FindFirstFileAFn g_realFindFirstFileA = FindFirstFileA;
+DeleteFileWFn g_realDeleteFileW = DeleteFileW;
+DeleteFileAFn g_realDeleteFileA = DeleteFileA;
+RemoveDirectoryWFn g_realRemoveDirectoryW = RemoveDirectoryW;
+RemoveDirectoryAFn g_realRemoveDirectoryA = RemoveDirectoryA;
+MoveFileWFn g_realMoveFileW = MoveFileW;
+MoveFileAFn g_realMoveFileA = MoveFileA;
+MoveFileExWFn g_realMoveFileExW = MoveFileExW;
+MoveFileExAFn g_realMoveFileExA = MoveFileExA;
+CopyFileWFn g_realCopyFileW = CopyFileW;
+CopyFileAFn g_realCopyFileA = CopyFileA;
+SetFileAttributesWFn g_realSetFileAttributesW = SetFileAttributesW;
+SetFileAttributesAFn g_realSetFileAttributesA = SetFileAttributesA;
 CreateProcessWFn g_realCreateProcessW = CreateProcessW;
 CreateProcessAFn g_realCreateProcessA = CreateProcessA;
+
+std::wstring RedirectWorkshopPath(LPCWSTR path) {
+  if (!path || !*path || !g_isInjectedProcess || !g_hookReady ||
+      !g_session.workshopDirectory[0]) {
+    return {};
+  }
+
+  const DWORD previousError = GetLastError();
+  std::wstring redirected;
+  std::vector<wchar_t> fullPath(32768);
+  const DWORD length = GetFullPathNameW(path,
+      static_cast<DWORD>(fullPath.size()), fullPath.data(), nullptr);
+  if (length > 0 && length < fullPath.size()) {
+    std::wstring actual(fullPath.data(), length);
+    std::wstring workshopRoot(g_session.steamDirectory);
+    workshopRoot.append(L"\\steamapps\\workshop\\content\\431960");
+    for (wchar_t& character : actual) {
+      if (character == L'/') character = L'\\';
+    }
+    for (wchar_t& character : workshopRoot) {
+      if (character == L'/') character = L'\\';
+    }
+    while (workshopRoot.size() > 3 && workshopRoot.back() == L'\\') {
+      workshopRoot.pop_back();
+    }
+
+    const size_t rootLength = workshopRoot.size();
+    if (_wcsnicmp(actual.c_str(), workshopRoot.c_str(), rootLength) == 0 &&
+        (actual.size() == rootLength || actual[rootLength] == L'\\')) {
+      redirected.assign(g_session.workshopDirectory);
+      redirected.append(actual.substr(rootLength));
+    }
+  }
+  SetLastError(previousError);
+  return redirected;
+}
+
+std::wstring WideFromAnsi(LPCSTR path) {
+  if (!path || !*path) return {};
+  const int length = MultiByteToWideChar(CP_ACP, 0, path, -1, nullptr, 0);
+  if (length <= 1) return {};
+  std::wstring result(static_cast<size_t>(length), L'\0');
+  MultiByteToWideChar(CP_ACP, 0, path, -1, result.data(), length);
+  result.resize(static_cast<size_t>(length - 1));
+  return result;
+}
+
+std::string AnsiFromWide(const std::wstring& path) {
+  if (path.empty()) return {};
+  const int length = WideCharToMultiByte(CP_ACP, WC_NO_BEST_FIT_CHARS,
+      path.c_str(), -1, nullptr, 0, nullptr, nullptr);
+  if (length <= 1) return {};
+  std::string result(static_cast<size_t>(length), '\0');
+  if (!WideCharToMultiByte(CP_ACP, WC_NO_BEST_FIT_CHARS, path.c_str(), -1,
+          result.data(), length, nullptr, nullptr)) {
+    return {};
+  }
+  result.resize(static_cast<size_t>(length - 1));
+  return result;
+}
+
+std::string RedirectWorkshopPathA(LPCSTR path) {
+  return AnsiFromWide(RedirectWorkshopPath(WideFromAnsi(path).c_str()));
+}
+
+HANDLE WINAPI HookCreateFileW(LPCWSTR path, DWORD access, DWORD sharing,
+    LPSECURITY_ATTRIBUTES security, DWORD creation, DWORD flags,
+    HANDLE templateFile) {
+  const std::wstring redirected = RedirectWorkshopPath(path);
+  return g_realCreateFileW(redirected.empty() ? path : redirected.c_str(),
+      access, sharing, security, creation, flags, templateFile);
+}
+
+HANDLE WINAPI HookCreateFileA(LPCSTR path, DWORD access, DWORD sharing,
+    LPSECURITY_ATTRIBUTES security, DWORD creation, DWORD flags,
+    HANDLE templateFile) {
+  const std::string redirected = RedirectWorkshopPathA(path);
+  return g_realCreateFileA(redirected.empty() ? path : redirected.c_str(),
+      access, sharing, security, creation, flags, templateFile);
+}
+
+BOOL WINAPI HookCreateDirectoryW(LPCWSTR path,
+    LPSECURITY_ATTRIBUTES security) {
+  const std::wstring redirected = RedirectWorkshopPath(path);
+  return g_realCreateDirectoryW(redirected.empty() ? path : redirected.c_str(),
+      security);
+}
+
+BOOL WINAPI HookCreateDirectoryA(LPCSTR path,
+    LPSECURITY_ATTRIBUTES security) {
+  const std::string redirected = RedirectWorkshopPathA(path);
+  return g_realCreateDirectoryA(redirected.empty() ? path : redirected.c_str(),
+      security);
+}
+
+DWORD WINAPI HookGetFileAttributesW(LPCWSTR path) {
+  const std::wstring redirected = RedirectWorkshopPath(path);
+  return g_realGetFileAttributesW(redirected.empty() ? path : redirected.c_str());
+}
+
+DWORD WINAPI HookGetFileAttributesA(LPCSTR path) {
+  const std::string redirected = RedirectWorkshopPathA(path);
+  return g_realGetFileAttributesA(redirected.empty() ? path : redirected.c_str());
+}
+
+BOOL WINAPI HookGetFileAttributesExW(LPCWSTR path,
+    GET_FILEEX_INFO_LEVELS level, LPVOID information) {
+  const std::wstring redirected = RedirectWorkshopPath(path);
+  return g_realGetFileAttributesExW(
+      redirected.empty() ? path : redirected.c_str(), level, information);
+}
+
+BOOL WINAPI HookGetFileAttributesExA(LPCSTR path,
+    GET_FILEEX_INFO_LEVELS level, LPVOID information) {
+  const std::string redirected = RedirectWorkshopPathA(path);
+  return g_realGetFileAttributesExA(
+      redirected.empty() ? path : redirected.c_str(), level, information);
+}
+
+HANDLE WINAPI HookFindFirstFileW(LPCWSTR path, LPWIN32_FIND_DATAW data) {
+  const std::wstring redirected = RedirectWorkshopPath(path);
+  return g_realFindFirstFileW(redirected.empty() ? path : redirected.c_str(), data);
+}
+
+HANDLE WINAPI HookFindFirstFileA(LPCSTR path, LPWIN32_FIND_DATAA data) {
+  const std::string redirected = RedirectWorkshopPathA(path);
+  return g_realFindFirstFileA(redirected.empty() ? path : redirected.c_str(), data);
+}
+
+BOOL WINAPI HookDeleteFileW(LPCWSTR path) {
+  const std::wstring redirected = RedirectWorkshopPath(path);
+  return g_realDeleteFileW(redirected.empty() ? path : redirected.c_str());
+}
+
+BOOL WINAPI HookDeleteFileA(LPCSTR path) {
+  const std::string redirected = RedirectWorkshopPathA(path);
+  return g_realDeleteFileA(redirected.empty() ? path : redirected.c_str());
+}
+
+BOOL WINAPI HookRemoveDirectoryW(LPCWSTR path) {
+  const std::wstring redirected = RedirectWorkshopPath(path);
+  return g_realRemoveDirectoryW(redirected.empty() ? path : redirected.c_str());
+}
+
+BOOL WINAPI HookRemoveDirectoryA(LPCSTR path) {
+  const std::string redirected = RedirectWorkshopPathA(path);
+  return g_realRemoveDirectoryA(redirected.empty() ? path : redirected.c_str());
+}
+
+BOOL WINAPI HookMoveFileW(LPCWSTR source, LPCWSTR destination) {
+  const std::wstring redirectedSource = RedirectWorkshopPath(source);
+  const std::wstring redirectedDestination = RedirectWorkshopPath(destination);
+  return g_realMoveFileW(redirectedSource.empty() ? source : redirectedSource.c_str(),
+      redirectedDestination.empty() ? destination : redirectedDestination.c_str());
+}
+
+BOOL WINAPI HookMoveFileA(LPCSTR source, LPCSTR destination) {
+  const std::string redirectedSource = RedirectWorkshopPathA(source);
+  const std::string redirectedDestination = RedirectWorkshopPathA(destination);
+  return g_realMoveFileA(
+      redirectedSource.empty() ? source : redirectedSource.c_str(),
+      redirectedDestination.empty() ? destination : redirectedDestination.c_str());
+}
+
+BOOL WINAPI HookMoveFileExW(LPCWSTR source, LPCWSTR destination, DWORD flags) {
+  const std::wstring redirectedSource = RedirectWorkshopPath(source);
+  const std::wstring redirectedDestination = RedirectWorkshopPath(destination);
+  return g_realMoveFileExW(
+      redirectedSource.empty() ? source : redirectedSource.c_str(),
+      redirectedDestination.empty() ? destination : redirectedDestination.c_str(),
+      flags);
+}
+
+BOOL WINAPI HookMoveFileExA(LPCSTR source, LPCSTR destination, DWORD flags) {
+  const std::string redirectedSource = RedirectWorkshopPathA(source);
+  const std::string redirectedDestination = RedirectWorkshopPathA(destination);
+  return g_realMoveFileExA(
+      redirectedSource.empty() ? source : redirectedSource.c_str(),
+      redirectedDestination.empty() ? destination : redirectedDestination.c_str(),
+      flags);
+}
+
+BOOL WINAPI HookCopyFileW(LPCWSTR source, LPCWSTR destination,
+    BOOL failIfExists) {
+  const std::wstring redirectedSource = RedirectWorkshopPath(source);
+  const std::wstring redirectedDestination = RedirectWorkshopPath(destination);
+  return g_realCopyFileW(
+      redirectedSource.empty() ? source : redirectedSource.c_str(),
+      redirectedDestination.empty() ? destination : redirectedDestination.c_str(),
+      failIfExists);
+}
+
+BOOL WINAPI HookCopyFileA(LPCSTR source, LPCSTR destination,
+    BOOL failIfExists) {
+  const std::string redirectedSource = RedirectWorkshopPathA(source);
+  const std::string redirectedDestination = RedirectWorkshopPathA(destination);
+  return g_realCopyFileA(
+      redirectedSource.empty() ? source : redirectedSource.c_str(),
+      redirectedDestination.empty() ? destination : redirectedDestination.c_str(),
+      failIfExists);
+}
+
+BOOL WINAPI HookSetFileAttributesW(LPCWSTR path, DWORD attributes) {
+  const std::wstring redirected = RedirectWorkshopPath(path);
+  return g_realSetFileAttributesW(
+      redirected.empty() ? path : redirected.c_str(), attributes);
+}
+
+BOOL WINAPI HookSetFileAttributesA(LPCSTR path, DWORD attributes) {
+  const std::string redirected = RedirectWorkshopPathA(path);
+  return g_realSetFileAttributesA(
+      redirected.empty() ? path : redirected.c_str(), attributes);
+}
 
 std::string Utf8FromWide(const wchar_t* value, int length) {
   if (length <= 0) return {};
@@ -303,6 +565,28 @@ bool InstallHooks() {
   if (error == NO_ERROR) error = DetourAttach(reinterpret_cast<PVOID*>(&g_realWriteConsoleW), HookWriteConsoleW);
   if (error == NO_ERROR) error = DetourAttach(reinterpret_cast<PVOID*>(&g_realWriteConsoleA), HookWriteConsoleA);
   if (error == NO_ERROR) error = DetourAttach(reinterpret_cast<PVOID*>(&g_realWriteFile), HookWriteFile);
+  if (error == NO_ERROR) error = DetourAttach(reinterpret_cast<PVOID*>(&g_realCreateFileW), HookCreateFileW);
+  if (error == NO_ERROR) error = DetourAttach(reinterpret_cast<PVOID*>(&g_realCreateFileA), HookCreateFileA);
+  if (error == NO_ERROR) error = DetourAttach(reinterpret_cast<PVOID*>(&g_realCreateDirectoryW), HookCreateDirectoryW);
+  if (error == NO_ERROR) error = DetourAttach(reinterpret_cast<PVOID*>(&g_realCreateDirectoryA), HookCreateDirectoryA);
+  if (error == NO_ERROR) error = DetourAttach(reinterpret_cast<PVOID*>(&g_realGetFileAttributesW), HookGetFileAttributesW);
+  if (error == NO_ERROR) error = DetourAttach(reinterpret_cast<PVOID*>(&g_realGetFileAttributesA), HookGetFileAttributesA);
+  if (error == NO_ERROR) error = DetourAttach(reinterpret_cast<PVOID*>(&g_realGetFileAttributesExW), HookGetFileAttributesExW);
+  if (error == NO_ERROR) error = DetourAttach(reinterpret_cast<PVOID*>(&g_realGetFileAttributesExA), HookGetFileAttributesExA);
+  if (error == NO_ERROR) error = DetourAttach(reinterpret_cast<PVOID*>(&g_realFindFirstFileW), HookFindFirstFileW);
+  if (error == NO_ERROR) error = DetourAttach(reinterpret_cast<PVOID*>(&g_realFindFirstFileA), HookFindFirstFileA);
+  if (error == NO_ERROR) error = DetourAttach(reinterpret_cast<PVOID*>(&g_realDeleteFileW), HookDeleteFileW);
+  if (error == NO_ERROR) error = DetourAttach(reinterpret_cast<PVOID*>(&g_realDeleteFileA), HookDeleteFileA);
+  if (error == NO_ERROR) error = DetourAttach(reinterpret_cast<PVOID*>(&g_realRemoveDirectoryW), HookRemoveDirectoryW);
+  if (error == NO_ERROR) error = DetourAttach(reinterpret_cast<PVOID*>(&g_realRemoveDirectoryA), HookRemoveDirectoryA);
+  if (error == NO_ERROR) error = DetourAttach(reinterpret_cast<PVOID*>(&g_realMoveFileW), HookMoveFileW);
+  if (error == NO_ERROR) error = DetourAttach(reinterpret_cast<PVOID*>(&g_realMoveFileA), HookMoveFileA);
+  if (error == NO_ERROR) error = DetourAttach(reinterpret_cast<PVOID*>(&g_realMoveFileExW), HookMoveFileExW);
+  if (error == NO_ERROR) error = DetourAttach(reinterpret_cast<PVOID*>(&g_realMoveFileExA), HookMoveFileExA);
+  if (error == NO_ERROR) error = DetourAttach(reinterpret_cast<PVOID*>(&g_realCopyFileW), HookCopyFileW);
+  if (error == NO_ERROR) error = DetourAttach(reinterpret_cast<PVOID*>(&g_realCopyFileA), HookCopyFileA);
+  if (error == NO_ERROR) error = DetourAttach(reinterpret_cast<PVOID*>(&g_realSetFileAttributesW), HookSetFileAttributesW);
+  if (error == NO_ERROR) error = DetourAttach(reinterpret_cast<PVOID*>(&g_realSetFileAttributesA), HookSetFileAttributesA);
   if (error == NO_ERROR) error = DetourAttach(reinterpret_cast<PVOID*>(&g_realCreateProcessW), HookCreateProcessW);
   if (error == NO_ERROR) error = DetourAttach(reinterpret_cast<PVOID*>(&g_realCreateProcessA), HookCreateProcessA);
   if (error == NO_ERROR) error = DetourTransactionCommit();
@@ -380,6 +664,13 @@ extern "C" __declspec(dllexport) HANDLE StartSteamCmdHooked(const wchar_t* args)
   HookConfig config{};
   config.version = kConfigVersion;
   wcscpy_s(config.steamDirectory, path.substr(0, slash).c_str());
+  const DWORD workshopLength = GetEnvironmentVariableW(
+      L"WALLPAPER_ENGINE_WORKSHOP_DIR", config.workshopDirectory,
+      _countof(config.workshopDirectory));
+  if (workshopLength >= _countof(config.workshopDirectory)) {
+    SetLastError(ERROR_FILENAME_EXCED_RANGE);
+    return nullptr;
+  }
   std::vector<wchar_t> commandLine(args, args + wcslen(args) + 1);
 
   g_job = CreateJobObjectW(nullptr, nullptr);

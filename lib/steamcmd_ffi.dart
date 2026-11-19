@@ -23,7 +23,11 @@ class SteamCmdHook {
   bool _finished = true;
   bool _acceptingInput = false;
 
-  Future<bool> start(String steamCmdPath, List<String> arguments) async {
+  Future<bool> start(
+    String steamCmdPath,
+    List<String> arguments, {
+    String? workshopDirectory,
+  }) async {
     if (_process != null) {
       onOutput('[steamcmd] A download session is already running.\n');
       return false;
@@ -46,6 +50,7 @@ class SteamCmdHook {
     _completion = _runWorker(
       executable,
       arguments,
+      workshopDirectory: workshopDirectory,
       acceptsInput: true,
       notifyComplete: true,
     );
@@ -88,6 +93,7 @@ class SteamCmdHook {
   Future<int> _runWorker(
     File executable,
     List<String> arguments, {
+    String? workshopDirectory,
     required bool acceptsInput,
     required bool notifyComplete,
   }) async {
@@ -101,7 +107,14 @@ class SteamCmdHook {
     try {
       final process = await Process.start(
         worker,
-        [executable.path, ...arguments],
+        [
+          executable.path,
+          if (workshopDirectory != null) ...[
+            '--workshop-dir',
+            workshopDirectory,
+          ],
+          ...arguments,
+        ],
         workingDirectory: executable.parent.path,
         mode: ProcessStartMode.normal,
         runInShell: false,

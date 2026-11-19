@@ -2,6 +2,7 @@
 #include <windows.h>
 
 #include <cstdio>
+#include <cstring>
 #include <cwchar>
 #include <string>
 #include <vector>
@@ -13,8 +14,58 @@ void Console(const wchar_t* text) {
                 static_cast<DWORD>(wcslen(text)), &written, nullptr);
 }
 
-int Child() {
+bool VerifyWorkshopRedirect(const wchar_t* targetDirectory) {
+  if (!targetDirectory || !*targetDirectory) return false;
+
+  wchar_t executable[MAX_PATH]{};
+  const DWORD length = GetModuleFileNameW(nullptr, executable, MAX_PATH);
+  if (!length || length >= MAX_PATH) return false;
+  wchar_t* separator = wcsrchr(executable, L'\\');
+  if (!separator) return false;
+  *separator = L'\0';
+
+  const std::wstring workshopItem = std::wstring(executable) +
+      L"\\steamapps\\workshop\\content\\431960\\fixture_item";
+  if (!CreateDirectoryW(workshopItem.c_str(), nullptr) &&
+      GetLastError() != ERROR_ALREADY_EXISTS) {
+    return false;
+  }
+
+  const std::wstring temporary = workshopItem + L"\\fixture.tmp";
+  const std::wstring downloaded = workshopItem + L"\\fixture.txt";
+  HANDLE file = CreateFileW(temporary.c_str(), GENERIC_WRITE, 0, nullptr,
+      CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
+  if (file == INVALID_HANDLE_VALUE) return false;
+  constexpr char payload[] = "redirected workshop file";
+  DWORD written = 0;
+  const BOOL saved = WriteFile(file, payload, sizeof(payload) - 1, &written, nullptr);
+  CloseHandle(file);
+  if (!saved || written != sizeof(payload) - 1 ||
+      !MoveFileExW(temporary.c_str(), downloaded.c_str(),
+                   MOVEFILE_REPLACE_EXISTING)) {
+    return false;
+  }
+
+  const std::wstring targetFile = std::wstring(targetDirectory) +
+      L"\\fixture_item\\fixture.txt";
+  file = CreateFileW(targetFile.c_str(), GENERIC_READ, FILE_SHARE_READ, nullptr,
+      OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
+  if (file == INVALID_HANDLE_VALUE) return false;
+  char actual[sizeof(payload)]{};
+  DWORD received = 0;
+  const BOOL read = ReadFile(file, actual, sizeof(actual), &received, nullptr);
+  CloseHandle(file);
+  if (!read || received != sizeof(payload) - 1 ||
+      memcmp(actual, payload, sizeof(payload) - 1) != 0) {
+    return false;
+  }
+  Console(L"[fixture] workshop path redirected\r\n");
+  return true;
+}
+
+int Child(const wchar_t* targetDirectory) {
   SetConsoleOutputCP(936);
+  if (!VerifyWorkshopRedirect(targetDirectory)) return 87;
   const char ansiLog[] =
       "[fixture] ANSI log: \xd1\xe9\xd6\xa4\xc2\xeb\xb4\xa6\xc0\xed\xcd\xa8\xb9\xfd\r\n";
   DWORD ansiWritten = 0;
@@ -43,17 +94,32 @@ int Child() {
 }  // namespace
 
 int wmain(int argc, wchar_t** argv) {
-  if (argc > 1 && wcscmp(argv[1], L"--child") == 0) return Child();
+  if (argc > 1 && wcscmp(argv[1], L"--child") == 0) {
+    wchar_t targetDirectory[MAX_PATH]{};
+    if (argc > 2) {
+      wcsncpy_s(targetDirectory, argv[2], _TRUNCATE);
+    } else {
+      GetEnvironmentVariableW(L"WALLPAPER_ENGINE_WORKSHOP_DIR",
+          targetDirectory, _countof(targetDirectory));
+    }
+    return Child(targetDirectory);
+  }
   Console(L"[fixture] starting the x64 SteamCMD process\r\n");
-  char executable[MAX_PATH]{};
-  if (!GetModuleFileNameA(nullptr, executable, MAX_PATH)) return 84;
-  std::string command = "\"" + std::string(executable) + "\" --child";
-  std::vector<char> writable(command.begin(), command.end());
-  writable.push_back('\0');
-  STARTUPINFOA startup{};
+  wchar_t targetDirectory[MAX_PATH]{};
+  if (!GetEnvironmentVariableW(L"WALLPAPER_ENGINE_WORKSHOP_DIR",
+          targetDirectory, _countof(targetDirectory))) {
+    return 84;
+  }
+  wchar_t executable[MAX_PATH]{};
+  if (!GetModuleFileNameW(nullptr, executable, MAX_PATH)) return 84;
+  std::wstring command = L"\"" + std::wstring(executable) +
+      L"\" --child \"" + targetDirectory + L"\"";
+  std::vector<wchar_t> writable(command.begin(), command.end());
+  writable.push_back(L'\0');
+  STARTUPINFOW startup{};
   startup.cb = sizeof(startup);
   PROCESS_INFORMATION child{};
-  if (!CreateProcessA(executable, writable.data(), nullptr, nullptr, FALSE,
+  if (!CreateProcessW(executable, writable.data(), nullptr, nullptr, FALSE,
                       0, nullptr, nullptr, &startup, &child)) {
     Console(L"[fixture] child process did not start\r\n");
     return 85;
