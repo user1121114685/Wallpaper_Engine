@@ -2,7 +2,7 @@
 ; 有关创建 Inno Setup 脚本文件的详细信息请查阅帮助文档
 
 #define MyAppName "Wallpaper Engine 壁纸下载器"
-#define MyAppVersion "0.3.7"
+#define MyAppVersion "0.3.8"
 #define MyAppPublisher "联盟少侠"
 #define MyIconFileName ".\windows\runner\resources\app_icon.ico"
 
@@ -42,7 +42,7 @@ Name: "{group}\{#MyAppName}"; Filename: "{app}\wallpaper_engine_workshop_downloa
 Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\wallpaper_engine_workshop_downloader.exe"; Tasks: desktopicon
 
 [Run]
-Filename: "{app}\wallpaper_engine_workshop_downloader.exe"; Description: "{cm:LaunchProgram,{#StringChange(MyAppName, '&', '&&')}}"; Flags: nowait postinstall skipifsilent
+Filename: "{app}\wallpaper_engine_workshop_downloader.exe"; Description: "{cm:LaunchProgram,{#StringChange(MyAppName, '&', '&&')}}"; Flags: nowait postinstall skipifsilent runascurrentuser
 
 [Code]
 // 检查路径是否包含空格或非ASCII字符（可能是中文等）
