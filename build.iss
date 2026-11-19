@@ -2,7 +2,7 @@
 ; 有关创建 Inno Setup 脚本文件的详细信息请查阅帮助文档
 
 #define MyAppName "Wallpaper Engine 壁纸下载器"
-#define MyAppVersion "0.3.5"
+#define MyAppVersion "0.3.6"
 #define MyAppPublisher "联盟少侠"
 #define MyIconFileName ".\windows\runner\resources\app_icon.ico"
 
@@ -18,7 +18,7 @@ AppVersion={#MyAppVersion}
 AppPublisher={#MyAppPublisher}
 DefaultDirName={code:GetDefaultInstallDir}
 DefaultGroupName={#MyAppName}
-OutputBaseFilename=Wallpaper_Engine
+OutputBaseFilename=Wallpaper_Engine_install
 Compression=lzma
 SolidCompression=yes
 ArchitecturesAllowed=x64compatible
@@ -32,13 +32,15 @@ PrivilegesRequired=admin
 ; 将当前目录下 \build\windows\x64\runner\Release\* 中的所有文件打包
 Source: "build\windows\x64\runner\Release\*"; DestDir: "{app}"; Flags: recursesubdirs createallsubdirs
 
+[Tasks]
+Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"
+
 [Icons]
 Name: "{group}\{#MyAppName}"; Filename: "{app}\wallpaper_engine_workshop_downloader.exe"
-Name: "{commondesktop}\{#MyAppName}"; Filename: "{app}\wallpaper_engine_workshop_downloader.exe"
+Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\wallpaper_engine_workshop_downloader.exe"; Tasks: desktopicon
 
 [Run]
-; 移除安装后自动运行，避免权限问题
-; Filename: "{app}\wallpaper_engine_workshop_downloader.exe"; Description: "{cm:LaunchProgram,{#StringChange(MyAppName, '&', '&&')}}"; Flags: nowait postinstall skipifsilent runasoriginaluser
+Filename: "{app}\wallpaper_engine_workshop_downloader.exe"; Description: "{cm:LaunchProgram,{#StringChange(MyAppName, '&', '&&')}}"; Flags: nowait postinstall skipifsilent runasoriginaluser
 
 [Code]
 // 检查路径是否包含空格或非ASCII字符（可能是中文等）

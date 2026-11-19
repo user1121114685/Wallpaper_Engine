@@ -11,7 +11,7 @@ steamCMD [命令详情](https://github.com/dgibbs64/SteamCMD-Commands-List/blob/
 
 ## 使用方法
 
-[下载地址 点我下载](https://github.com/user1121114685/Wallpaper_Engine/releases/latest/download/Wallpaper_Engine.exe)    
+[下载地址 点我下载](https://github.com/user1121114685/Wallpaper_Engine/releases/latest/download/Wallpaper_Engine_install.exe)
 
     
 ---
